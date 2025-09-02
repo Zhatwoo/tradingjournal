@@ -1,7 +1,7 @@
 'use client';
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { auth, signInWithEmailAndPassword } from "../../lib/firebase"; // path stays the same
+import { auth, signInWithEmailAndPassword } from "../../lib/firebase";
 import Link from "next/link";
 
 export default function LoginPage() {
@@ -15,12 +15,11 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError("");
-    
     try {
       await signInWithEmailAndPassword(auth, email, password);
       router.push("/dashboard");
     } catch (err) {
-      setError("Incorrect email or password."); // simple friendly message
+      setError("Incorrect email or password."); 
     } finally {
       setLoading(false);
     }
@@ -28,18 +27,22 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4 font-['Roboto']">
-      <div className="bg-gray-800 rounded-xl shadow-2xl w-full max-w-md p-8">
+      <div className="bg-gradient-to-br from-gray-800 via-gray-900 to-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-8 border border-blue-600">
+        
+        {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Welcome Back</h1>
-          <p className="text-gray-400">Sign in to your account</p>
+          <h1 className="text-3xl font-bold text-blue-400 mb-2 drop-shadow-lg">Welcome Back</h1>
+          <p className="text-gray-400">Sign in to your trading account</p>
         </div>
 
+        {/* Error */}
         {error && (
-          <div className="bg-red-600 text-white px-4 py-2 rounded mb-4 text-center">
+          <div className="bg-red-600 text-white px-4 py-2 rounded mb-4 text-center shadow-md">
             {error}
           </div>
         )}
 
+        {/* Form */}
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
             <label className="block text-sm text-gray-300 mb-1">Email</label>
@@ -68,21 +71,19 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold transition disabled:opacity-50"
+            className="w-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 hover:opacity-95 transition text-white py-3 rounded-lg font-semibold shadow-lg disabled:opacity-50"
           >
             {loading ? "Signing in..." : "Sign in"}
           </button>
         </form>
-<div className="mt-6 text-center text-gray-400 text-sm">
-  New user?{" "}
-  <Link
-    href="/auth/register"
-    className="text-red-500 hover:text-red-400 font-medium"
-  >
-    Create an account
-  </Link>
-</div>
 
+        {/* Links */}
+        <div className="mt-6 text-center text-gray-400 text-sm">
+          New user?{" "}
+          <Link href="/auth/register" className="text-red-500 hover:text-red-400 font-medium">
+            Create an account
+          </Link>
+        </div>
 
         <div className="mt-2 text-center text-gray-400 text-sm">
           <Link href="#" className="text-blue-400 hover:text-blue-300">

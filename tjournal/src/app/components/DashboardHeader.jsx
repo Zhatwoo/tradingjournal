@@ -45,13 +45,7 @@ export default function DashboardHeader({ username = "Trader", balance = 12500, 
           <button
             onClick={handleAddTrade}
             className="flex items-center gap-1 px-3 py-1 rounded bg-green-600 hover:bg-green-500 transition text-xs"
-          >
-            <PlusCircle size={16} /> Add
-          </button>
-          <button
-            onClick={handleProfile}
-            className="flex items-center gap-1 px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 transition text-xs"
-          >
+                    >
             <User size={16} />
           </button>
           <button
