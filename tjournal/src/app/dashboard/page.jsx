@@ -46,8 +46,25 @@ export default function Dashboard() {
   const [imagePreview, setImagePreview] = useState(null);
   const [recentTrades, setRecentTrades] = useState([]);
 
-  // Editable starting balance
   const [startingBalance, setStartingBalance] = useState(12000);
+
+  // -----------------------------
+  // Modal for daily trades
+  // -----------------------------
+  const [selectedDayTrades, setSelectedDayTrades] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedDay, setSelectedDay] = useState(null);
+
+  // -----------------------------
+  // Month & Year for Calendar
+  // -----------------------------
+  const now = new Date();
+  const todayDate = now.getDate();
+  const todayMonth = now.getMonth();
+  const todayYear = now.getFullYear();
+
+  const [selectedMonth, setSelectedMonth] = useState(todayMonth);
+  const [selectedYear, setSelectedYear] = useState(todayYear);
 
   // -----------------------------
   // EFFECTS
@@ -180,6 +197,22 @@ export default function Dashboard() {
   const chartOptions = { plugins: { legend: { display: false } }, responsive: true, maintainAspectRatio: false };
 
   // -----------------------------
+  // Monthly P&L Calendar
+  // -----------------------------
+  const tradesInMonth = recentTrades.filter(trade => {
+    const date = new Date(trade.date);
+    return date.getMonth() === selectedMonth && date.getFullYear() === selectedYear;
+  });
+
+  const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+  const firstDayOfMonth = new Date(selectedYear, selectedMonth, 1).getDay(); // 0=Sun ... 6=Sat
+  const calendarDays = Array.from({ length: firstDayOfMonth }, () => null)
+    .concat(Array.from({ length: daysInMonth }, (_, i) => i + 1));
+
+  const availableYears = Array.from(new Set(recentTrades.map(t => new Date(t.date).getFullYear()))).sort((a, b) => b - a);
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  // -----------------------------
   // RENDER
   // -----------------------------
   return (
@@ -235,8 +268,8 @@ export default function Dashboard() {
             ))}
           </div>
 
-          {/* Chart + Trade History */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+          {/* Chart + Calendar + Trade History */}
+          <div className="grid grid-cols-1 gap-6 mb-6">
 
             {/* Portfolio Chart */}
             <div className="bg-gray-800/70 p-4 rounded-xl shadow-lg">
@@ -245,6 +278,132 @@ export default function Dashboard() {
                 <Line data={chartData} options={chartOptions} />
               </div>
             </div>
+
+            {/* Monthly P&L Calendar */}
+            <div className="bg-gray-800/70 p-4 rounded-xl shadow-lg">
+              <h2 className="text-lg font-semibold mb-4">Daily P&L Calendar</h2>
+
+              {/* Month & Year Navigation */}
+              <div className="flex justify-between mb-3 items-center">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      if (selectedMonth === 0) {
+                        setSelectedMonth(11);
+                        setSelectedYear(prev => prev - 1);
+                      } else setSelectedMonth(prev => prev - 1);
+                    }}
+                    className="px-3 py-1 bg-gray-700 rounded"
+                  >
+                    Prev
+                  </button>
+
+                  <span className="font-semibold">
+                    {new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' })}
+                  </span>
+
+                  <button
+                    onClick={() => {
+                      if (selectedMonth === 11) {
+                        setSelectedMonth(0);
+                        setSelectedYear(prev => prev + 1);
+                      } else setSelectedMonth(prev => prev + 1);
+                    }}
+                    className="px-3 py-1 bg-gray-700 rounded"
+                  >
+                    Next
+                  </button>
+                </div>
+
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(Number(e.target.value))}
+                  className="bg-gray-700 text-white px-2 py-1 rounded"
+                >
+                  {availableYears.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Days of week header */}
+              <div className="grid grid-cols-7 gap-2 mb-1">
+                {dayNames.map(day => (
+                  <div key={day} className="text-center text-xs font-semibold">{day}</div>
+                ))}
+              </div>
+
+              {/* Days */}
+              <div className="grid grid-cols-7 gap-2">
+                {calendarDays.map((day, idx) => {
+                  if (!day) return <div key={idx}></div>; // empty slot
+
+                  const dayTrades = tradesInMonth.filter(trade => new Date(trade.date).getDate() === day);
+                  const dayPnL = dayTrades.reduce((sum, t) => sum + (t.profit || 0), 0);
+                  const isToday = day === todayDate && selectedMonth === todayMonth && selectedYear === todayYear;
+
+                  return (
+                    <div
+                      key={day}
+                      className={`h-12 flex flex-col items-center justify-center text-xs font-semibold rounded cursor-pointer transition hover:scale-105 border ${
+                        dayPnL > 0 ? "bg-green-500/80 text-white" :
+                        dayPnL < 0 ? "bg-red-500/80 text-white" :
+                        "bg-gray-700 text-gray-300"
+                      } ${isToday ? "border-yellow-400 border-2" : "border-transparent"}`}
+                      title={`Day ${day}\nTotal P&L: ${dayPnL >= 0 ? "+" : ""}${dayPnL}\nTrades: ${dayTrades.length}`}
+                      onClick={() => {
+                        if (dayTrades.length === 0) return;
+                        setSelectedDayTrades(dayTrades);
+                        setSelectedDay(day);
+                        setIsModalOpen(true);
+                      }}
+                    >
+                      <span className="font-bold">{day}</span>
+                      <span className="text-[10px]">{dayPnL >= 0 ? "+" : ""}{dayPnL}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Day Trades Modal */}
+            {isModalOpen && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className="bg-gray-800 p-6 rounded-xl shadow-lg w-96 max-h-[80vh] overflow-y-auto">
+                  <h3 className="text-lg font-semibold mb-4">Trades for Day {selectedDay}</h3>
+                  <table className="w-full text-sm text-left">
+                    <thead>
+                      <tr>
+                        <th>Symbol</th>
+                        <th>Entry</th>
+                        <th>Exit</th>
+                        <th>Profit</th>
+                        <th>Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedDayTrades.map((t) => (
+                        <tr key={t.id} className="border-b border-gray-700">
+                          <td>{t.symbol}</td>
+                          <td>${t.entry}</td>
+                          <td>${t.exit}</td>
+                          <td className={`${t.profit >= 0 ? "text-green-400" : "text-red-400"}`}>
+                            {t.profit >= 0 ? "+" : ""}${t.profit}
+                          </td>
+                          <td>{t.notes || "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <button
+                    className="mt-4 bg-red-500 hover:bg-red-400 text-white px-4 py-2 rounded"
+                    onClick={() => setIsModalOpen(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Trade History Table */}
             <div className="bg-gray-800/70 p-4 rounded-xl shadow-lg overflow-x-auto max-h-96">
@@ -259,44 +418,26 @@ export default function Dashboard() {
                       <th className="px-3 py-2 text-left text-sm text-gray-400">Entry</th>
                       <th className="px-3 py-2 text-left text-sm text-gray-400">Exit</th>
                       <th className="px-3 py-2 text-left text-sm text-gray-400">Profit</th>
-                      <th className="px-3 py-2 text-left text-sm text-gray-400">Date</th>
                       <th className="px-3 py-2 text-left text-sm text-gray-400">Notes</th>
-                      <th className="px-3 py-2 text-left text-sm text-gray-400">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700">
                     {recentTrades.map((t) => (
-                      <tr key={t.id} className="hover:bg-gray-700/40">
+                      <tr key={t.id}>
                         <td className="px-3 py-2">{t.symbol}</td>
                         <td className="px-3 py-2">${t.entry}</td>
                         <td className="px-3 py-2">${t.exit}</td>
                         <td className={`px-3 py-2 ${t.profit >= 0 ? "text-green-400" : "text-red-400"}`}>
                           {t.profit >= 0 ? "+" : ""}${t.profit}
                         </td>
-                        <td className="px-3 py-2 text-xs text-gray-400">{new Date(t.date).toLocaleString()}</td>
-                        <td className="px-3 py-2 text-sm">{t.notes || "-"}</td>
-                        <td className="px-3 py-2">
-                          <button
-                            onClick={async () => {
-                              if (confirm("Are you sure you want to delete this trade?")) {
-                                try {
-                                  await deleteDoc(doc(db, "trades1", t.id));
-                                } catch (error) {
-                                  console.error("Failed to delete trade:", error);
-                                }
-                              }
-                            }}
-                            className="text-red-500 hover:text-red-400 font-semibold"
-                          >
-                            Delete
-                          </button>
-                        </td>
+                        <td className="px-3 py-2">{t.notes || "-"}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               )}
             </div>
+
           </div>
 
           {/* Add Trade Modal */}
