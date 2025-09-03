@@ -1,8 +1,8 @@
 'use client';
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../../lib/firebase";
+import { createUserWithEmailAndPassword } from "firebase/auth";
 import Link from "next/link";
 
 export default function RegisterPage() {
