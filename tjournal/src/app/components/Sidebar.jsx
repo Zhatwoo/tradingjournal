@@ -262,7 +262,7 @@ export default function Sidebar({
           </button>
 
           <div className="text-center text-gray-400 mt-4 text-xs">
-            Tradezella © 2025
+            TJournal © 2025
           </div>
         </div>
       </aside>
