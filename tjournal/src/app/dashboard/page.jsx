@@ -21,10 +21,15 @@ import {
   Legend,
 } from "chart.js";
 
+// Register Chart.js components
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
 export default function Dashboard() {
   const router = useRouter();
+
+  // -----------------------------
+  // STATE VARIABLES
+  // -----------------------------
   const [user, setUser] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -41,7 +46,12 @@ export default function Dashboard() {
   const [imagePreview, setImagePreview] = useState(null);
   const [recentTrades, setRecentTrades] = useState([]);
 
-  // Check screen size
+  // Editable starting balance
+  const [startingBalance, setStartingBalance] = useState(12000);
+
+  // -----------------------------
+  // EFFECTS
+  // -----------------------------
   useEffect(() => {
     const checkScreenSize = () => {
       const mobile = window.innerWidth < 768;
@@ -53,7 +63,6 @@ export default function Dashboard() {
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
-  // Auth redirect
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
       if (!currentUser) router.push("/auth/login");
@@ -62,7 +71,6 @@ export default function Dashboard() {
     return unsubscribe;
   }, [router]);
 
-  // Fetch trades from "trades1"
   useEffect(() => {
     if (!user) return;
     const q = query(
@@ -80,7 +88,9 @@ export default function Dashboard() {
     return () => unsubscribe();
   }, [user]);
 
-  // Handle form change
+  // -----------------------------
+  // HANDLERS
+  // -----------------------------
   const handleChange = (e) => {
     const { name, value, files } = e.target;
 
@@ -91,7 +101,6 @@ export default function Dashboard() {
       setFormData({ ...formData, [name]: value });
     }
 
-    // Auto-calc profit
     if (name === "entry" || name === "exit") {
       const entry = name === "entry" ? Number(value) : Number(formData.entry);
       const exit = name === "exit" ? Number(value) : Number(formData.exit);
@@ -101,7 +110,6 @@ export default function Dashboard() {
     }
   };
 
-  // Submit trade
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!user) return;
@@ -133,9 +141,15 @@ export default function Dashboard() {
     }
   };
 
+  // -----------------------------
+  // CALCULATED VARIABLES
+  // -----------------------------
   const dailyPnL = recentTrades.reduce((acc, trade) => acc + (trade.profit || 0), 0);
+  const currentBalance = startingBalance + dailyPnL;
+
   const metrics = [
-    { label: "Balance", value: 12500, color: "text-white", prefix: "$" },
+    { label: "Starting Balance", value: startingBalance, color: "text-white", editable: true },
+    { label: "Current Balance", value: currentBalance, color: currentBalance >= 0 ? "text-green-400" : "text-red-500", prefix: "$" },
     { label: "Today's P&L", value: dailyPnL, color: dailyPnL >= 0 ? "text-green-400" : "text-red-500", prefix: "$" },
     { label: "Trades", value: recentTrades.length, color: "text-white" },
     { label: "Winning %", value: recentTrades.length > 0
@@ -150,7 +164,7 @@ export default function Dashboard() {
       {
         label: "Portfolio Value",
         data: recentTrades.reduce((acc, t, i) => {
-          const last = acc[i - 1] || 12000;
+          const last = acc[i - 1] || startingBalance;
           return [...acc, last + (t.profit || 0)];
         }, []),
         fill: true,
@@ -165,9 +179,14 @@ export default function Dashboard() {
 
   const chartOptions = { plugins: { legend: { display: false } }, responsive: true, maintainAspectRatio: false };
 
+  // -----------------------------
+  // RENDER
+  // -----------------------------
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden">
       <div className="flex min-h-screen relative z-10">
+
+        {/* Sidebar */}
         <Sidebar
           username={user?.email || "Trader"}
           active="Dashboard"
@@ -176,12 +195,15 @@ export default function Dashboard() {
           isMobile={isMobile}
         />
 
+        {/* Main content */}
         <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarOpen && !isMobile ? 'md:ml-64' : 'md:ml-16'} ml-0 p-3 sm:p-4 md:p-5 lg:p-6`}>
+
+          {/* Header + Add Trade */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
             <DashboardHeader
               username={user?.email || "Trader"}
-              balance={metrics[0].value}
-              dailyPnL={metrics[1].value}
+              balance={currentBalance}
+              dailyPnL={dailyPnL}
               onMenuClick={() => setSidebarOpen(!sidebarOpen)}
             />
             <button
@@ -197,15 +219,25 @@ export default function Dashboard() {
             {metrics.map((m, i) => (
               <div key={i} className="bg-gray-800/70 p-4 rounded-xl shadow-lg">
                 <p className="text-gray-400 text-sm">{m.label}</p>
-                <p className={`text-2xl font-bold ${m.color}`}>
-                  {m.prefix || ""}{m.value}{m.suffix || ""}
-                </p>
+                {m.editable ? (
+                  <input
+                    type="number"
+                    value={startingBalance}
+                    onChange={(e) => setStartingBalance(Number(e.target.value))}
+                    className="text-2xl font-bold text-white bg-gray-900 rounded px-2 py-1 w-full"
+                  />
+                ) : (
+                  <p className={`text-2xl font-bold ${m.color}`}>
+                    {m.prefix || ""}{m.value}{m.suffix || ""}
+                  </p>
+                )}
               </div>
             ))}
           </div>
 
-          {/* Chart + Trade History Table */}
+          {/* Chart + Trade History */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+
             {/* Portfolio Chart */}
             <div className="bg-gray-800/70 p-4 rounded-xl shadow-lg">
               <h2 className="text-lg font-semibold mb-4">Portfolio Performance</h2>
