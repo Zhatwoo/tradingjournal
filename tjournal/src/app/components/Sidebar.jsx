@@ -81,7 +81,7 @@ export default function Sidebar({
                 {username[0].toUpperCase()}
               </div>
               <span className="font-semibold text-sm bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent truncate">
-                Tradezella
+                TJournal
               </span>
             </div>
           ) : (
@@ -168,7 +168,7 @@ export default function Sidebar({
 
           {isOpen && (
             <div className="text-center text-gray-400 mt-4 text-xs">
-              Tradezella © 2025
+              TJournal© 2025
             </div>
           )}
         </div>
@@ -207,7 +207,7 @@ export default function Sidebar({
               {username[0].toUpperCase()}
             </div>
             <span className="font-semibold text-sm bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-              Tradezella
+              TJournal
             </span>
           </div>
           
