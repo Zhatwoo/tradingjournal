@@ -2,10 +2,27 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { 
+  calculateTradeProfitLoss, 
+  calculatePipValue, 
+  calculatePositionSize, 
+  calculateRiskAmount,
+  getPipSize,
+  formatPrice,
+  validateLotSize,
+  getAvailablePairs,
+  getAccountTypes,
+  ACCOUNT_TYPES
+} from '../lib/forexCalculations';
 
 export default function AddTradeModal({ showModal, setShowModal, handleSubmit, formData, handleChange, selectedDate, loading = false }) {
   const [imagePreview, setImagePreview] = useState(null);
   const [pastedImage, setPastedImage] = useState(null);
+  const [accountType, setAccountType] = useState('STANDARD');
+  const [tradeDirection, setTradeDirection] = useState('BUY');
+  const [stopLossPips, setStopLossPips] = useState('');
+  const [availablePairs] = useState(getAvailablePairs());
+  const [accountTypes] = useState(getAccountTypes());
 
   // Update image preview when formData.image changes
   useEffect(() => {
@@ -64,18 +81,34 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
     }
   };
 
-  // Calculate position size and other metrics
+  // Calculate position size and other metrics using forex formulas
   const calculateMetrics = () => {
     const entry = Number(formData.entry) || 0;
     const exit = Number(formData.exit) || 0;
     const lotSize = Number(formData.lotSize) || 0;
+    const symbol = formData.symbol || '';
     
-    const profit = exit - entry;
-    const positionSize = entry * lotSize;
-    const pips = Math.abs(profit);
-    const riskAmount = Math.abs(profit * lotSize);
+    if (!symbol || !entry || !exit || !lotSize) {
+      return { profit: 0, positionSize: 0, pips: 0, riskAmount: 0, pipValue: 0 };
+    }
     
-    return { profit, positionSize, pips, riskAmount };
+    // Calculate profit/loss using forex formulas
+    const profit = calculateTradeProfitLoss(symbol, entry, exit, lotSize, accountType, tradeDirection);
+    
+    // Calculate position size
+    const positionSize = calculatePositionSize(symbol, lotSize, accountType, entry);
+    
+    // Calculate pip value
+    const pipValue = calculatePipValue(symbol, accountType, entry);
+    
+    // Calculate pips moved
+    const pipSize = getPipSize(symbol);
+    const pips = Math.abs(exit - entry) / pipSize;
+    
+    // Calculate risk amount if stop loss is provided
+    const riskAmount = stopLossPips ? calculateRiskAmount(symbol, lotSize, Number(stopLossPips), accountType, entry) : 0;
+    
+    return { profit, positionSize, pips, riskAmount, pipValue };
   };
 
   const metrics = calculateMetrics();
@@ -100,19 +133,53 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Account Type and Trade Direction Row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Account Type</label>
+              <select
+                value={accountType}
+                onChange={(e) => setAccountType(e.target.value)}
+                className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                {accountTypes.map(type => (
+                  <option key={type.value} value={type.value}>
+                    {type.label} - {type.description}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Trade Direction</label>
+              <select
+                value={tradeDirection}
+                onChange={(e) => setTradeDirection(e.target.value)}
+                className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="BUY">BUY (Long)</option>
+                <option value="SELL">SELL (Short)</option>
+              </select>
+            </div>
+          </div>
+
           {/* Symbol and Lot Size Row */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Symbol</label>
-              <input
-                type="text"
+              <label className="block text-sm font-medium text-gray-300 mb-2">Currency Pair</label>
+              <select
                 name="symbol"
-                placeholder="e.g., EURUSD, GBPJPY"
                 value={formData.symbol}
                 onChange={handleChange}
                 required
                 className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
+              >
+                <option value="">Select Currency Pair</option>
+                {availablePairs.map(pair => (
+                  <option key={pair.value} value={pair.value}>
+                    {pair.label} ({pair.category})
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">Lot Size</label>
@@ -125,8 +192,15 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
                 value={formData.lotSize}
                 onChange={handleChange}
                 required
-                className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className={`w-full p-3 rounded-lg bg-gray-700 text-white border focus:outline-none focus:ring-1 ${
+                  formData.lotSize && !validateLotSize(Number(formData.lotSize), accountType) 
+                    ? 'border-red-500 focus:border-red-500 focus:ring-red-500' 
+                    : 'border-gray-600 focus:border-blue-500 focus:ring-blue-500'
+                }`}
               />
+              {formData.lotSize && !validateLotSize(Number(formData.lotSize), accountType) && (
+                <p className="text-red-400 text-xs mt-1">Invalid lot size for {accountType} account</p>
+              )}
             </div>
           </div>
 
@@ -137,8 +211,8 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
               <input
                 type="number"
                 name="entry"
-                placeholder="1.23456"
-                step="0.00001"
+                placeholder={formData.symbol ? formatPrice(formData.symbol, 1.23456) : "1.23456"}
+                step={formData.symbol ? getPipSize(formData.symbol) : "0.00001"}
                 value={formData.entry}
                 onChange={handleChange}
                 required
@@ -150,8 +224,8 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
               <input
                 type="number"
                 name="exit"
-                placeholder="1.23567"
-                step="0.00001"
+                placeholder={formData.symbol ? formatPrice(formData.symbol, 1.23567) : "1.23567"}
+                step={formData.symbol ? getPipSize(formData.symbol) : "0.00001"}
                 value={formData.exit}
                 onChange={handleChange}
                 required
@@ -160,14 +234,37 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
             </div>
           </div>
 
+          {/* Stop Loss Row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Stop Loss (Pips)</label>
+              <input
+                type="number"
+                placeholder="20"
+                step="1"
+                value={stopLossPips}
+                onChange={(e) => setStopLossPips(e.target.value)}
+                className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Risk Amount</label>
+              <div className="w-full p-3 rounded-lg bg-gray-600 text-white border border-gray-500">
+                <span className="text-lg font-bold text-purple-400">
+                  ${metrics.riskAmount.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* Calculated Metrics Display */}
           <div className="bg-gray-700/50 p-4 rounded-lg border border-gray-600">
-            <h3 className="text-sm font-semibold text-gray-300 mb-3">Trade Calculations</h3>
+            <h3 className="text-sm font-semibold text-gray-300 mb-3">Forex Trade Calculations</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center">
-                <p className="text-xs text-gray-400">Profit/Loss</p>
+                <p className="text-xs text-gray-400">Profit/Loss (USD)</p>
                 <p className={`text-lg font-bold ${metrics.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {metrics.profit >= 0 ? '+' : ''}{metrics.profit.toFixed(5)}
+                  {metrics.profit >= 0 ? '+' : ''}${metrics.profit.toFixed(2)}
                 </p>
               </div>
               <div className="text-center">
@@ -177,16 +274,34 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
                 </p>
               </div>
               <div className="text-center">
-                <p className="text-xs text-gray-400">Pips</p>
+                <p className="text-xs text-gray-400">Pips Moved</p>
                 <p className="text-lg font-bold text-yellow-400">
-                  {metrics.pips.toFixed(5)}
+                  {metrics.pips.toFixed(1)}
                 </p>
               </div>
               <div className="text-center">
-                <p className="text-xs text-gray-400">Risk Amount</p>
+                <p className="text-xs text-gray-400">Pip Value</p>
                 <p className="text-lg font-bold text-purple-400">
-                  ${metrics.riskAmount.toFixed(2)}
+                  ${metrics.pipValue.toFixed(2)}
                 </p>
+              </div>
+            </div>
+            <div className="mt-3 pt-3 border-t border-gray-600">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                <div>
+                  <p className="text-xs text-gray-400">Account Type</p>
+                  <p className="text-sm font-semibold text-white">{ACCOUNT_TYPES[accountType]?.name}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">Trade Direction</p>
+                  <p className={`text-sm font-semibold ${tradeDirection === 'BUY' ? 'text-green-400' : 'text-red-400'}`}>
+                    {tradeDirection}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">Currency Pair</p>
+                  <p className="text-sm font-semibold text-white">{formData.symbol || 'N/A'}</p>
+                </div>
               </div>
             </div>
           </div>

@@ -8,6 +8,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Sidebar from '../components/Sidebar';
 import AddTradeModal from '../components/AddTrade';
 import { ArrowLeft } from 'lucide-react';
+import { calculateTradeProfitLoss } from '../lib/forexCalculations';
 
 export default function AddTradePage() {
   const router = useRouter();
@@ -26,6 +27,9 @@ export default function AddTradePage() {
     profit: "",
     notes: "",
     image: null,
+    accountType: "STANDARD",
+    tradeDirection: "BUY",
+    stopLossPips: "",
   });
   const [imagePreview, setImagePreview] = useState(null);
 
@@ -72,11 +76,25 @@ export default function AddTradePage() {
       setFormData({ ...formData, [name]: value });
     }
 
-    if (name === "entry" || name === "exit") {
+    // Calculate profit using forex formulas when entry, exit, symbol, lotSize, or tradeDirection changes
+    if (name === "entry" || name === "exit" || name === "symbol" || name === "lotSize" || name === "tradeDirection") {
       const entry = name === "entry" ? Number(value) : Number(formData.entry);
       const exit = name === "exit" ? Number(value) : Number(formData.exit);
-      if (!isNaN(entry) && !isNaN(exit)) {
-        setFormData((prev) => ({ ...prev, profit: (exit - entry).toFixed(2) }));
+      const symbol = name === "symbol" ? value : formData.symbol;
+      const lotSize = name === "lotSize" ? Number(value) : Number(formData.lotSize);
+      const tradeDirection = name === "tradeDirection" ? value : formData.tradeDirection;
+      const accountType = formData.accountType || "STANDARD";
+      
+      if (!isNaN(entry) && !isNaN(exit) && entry > 0 && exit > 0 && symbol && lotSize > 0) {
+        try {
+          const calculatedProfit = calculateTradeProfitLoss(symbol, entry, exit, lotSize, accountType, tradeDirection);
+          setFormData((prev) => ({ ...prev, profit: calculatedProfit.toFixed(2) }));
+        } catch (error) {
+          console.warn("Error calculating profit:", error);
+          // Fallback to simple calculation if forex calculation fails
+          const simpleProfit = exit - entry;
+          setFormData((prev) => ({ ...prev, profit: simpleProfit.toFixed(2) }));
+        }
       }
     }
   };
@@ -106,7 +124,7 @@ export default function AddTradePage() {
         date: new Date().toISOString(),
       });
 
-      setFormData({ symbol: "", entry: "", exit: "", lotSize: "", profit: "", notes: "", image: null });
+      setFormData({ symbol: "", entry: "", exit: "", lotSize: "", profit: "", notes: "", image: null, accountType: "STANDARD", tradeDirection: "BUY", stopLossPips: "" });
       setImagePreview(null);
       setShowModal(false);
       setMessage({ type: 'success', text: 'Trade added successfully!' });
