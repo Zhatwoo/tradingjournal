@@ -2,13 +2,16 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { auth, db, storage } from "../lib/firebase";
-import { collection, addDoc, query, where, onSnapshot, orderBy, doc, deleteDoc } from "firebase/firestore";
+import { collection, addDoc, query, where, onSnapshot, orderBy, doc, deleteDoc, updateDoc, setDoc, getDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useRouter } from "next/navigation";
 import DashboardHeader from "../components/DashboardHeader";
 import Sidebar from "../components/Sidebar";
 import AddTradeModal from '../components/AddTrade';
 import TradeHistory from '../components/TradeHistory';
+import TradingCalendar from '../components/TradingCalendar';
+import EquityCurve from '../components/EquityCurve';
+import PerInsights from '../components/PerInsights';
 import { Line } from "react-chartjs-2";
 
 import {
@@ -45,12 +48,29 @@ export default function Dashboard() {
     profit: "",
     notes: "",
     image: null,
+    accountType: "STANDARD",
+    tradeDirection: "BUY",
+    stopLossPips: "",
   });
   const [imagePreview, setImagePreview] = useState(null);
   const [recentTrades, setRecentTrades] = useState([]);
 
   const [startingBalance, setStartingBalance] = useState(12000);
-  const [lastResetDate, setLastResetDate] = useState(new Date().toISOString());
+  
+  // Smart date range defaults - start from beginning of current month, end today
+  const getDefaultDateRange = () => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    return {
+      start: startOfMonth.toISOString(),
+      end: now.toISOString()
+    };
+  };
+  
+  const defaultRange = getDefaultDateRange();
+  const [metricsStartDate, setMetricsStartDate] = useState(defaultRange.start);
+  const [metricsEndDate, setMetricsEndDate] = useState(defaultRange.end);
+  const [selectedDuration, setSelectedDuration] = useState('30D'); // Default to last 30 days
 
   // -----------------------------
   // Modal for daily trades
@@ -61,16 +81,14 @@ export default function Dashboard() {
   const [isDayOptionsModalOpen, setIsDayOptionsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
 
-  // -----------------------------
-  // Month & Year for Calendar
-  // -----------------------------
-  const now = new Date();
-  const todayDate = now.getDate();
-  const todayMonth = now.getMonth();
-  const todayYear = now.getFullYear();
+  // Edit trade functionality
+  const [editingTrade, setEditingTrade] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  
+  // Metrics modal functionality
+  const [isMetricsModalOpen, setIsMetricsModalOpen] = useState(false);
+  const [selectedMetric, setSelectedMetric] = useState(null);
 
-  const [selectedMonth, setSelectedMonth] = useState(todayMonth);
-  const [selectedYear, setSelectedYear] = useState(todayYear);
 
   // -----------------------------
   // EFFECTS
@@ -106,7 +124,11 @@ export default function Dashboard() {
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
       if (!currentUser) router.push("/auth/login");
-      else setUser(currentUser);
+      else {
+        setUser(currentUser);
+        // Load user settings when user logs in
+        loadUserSettings();
+      }
     });
     return unsubscribe;
   }, [router]);
@@ -127,6 +149,39 @@ export default function Dashboard() {
     });
     return () => unsubscribe();
   }, [user]);
+
+  // Save user settings when they change
+  useEffect(() => {
+    if (user) {
+      const timeoutId = setTimeout(() => {
+        saveUserSettings();
+      }, 1000); // Debounce saving by 1 second
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [startingBalance, metricsStartDate, metricsEndDate, selectedDuration, user]);
+
+  // Auto-adjust date range when trades are loaded (only if no custom range is set)
+  useEffect(() => {
+    if (recentTrades.length > 0 && selectedDuration !== 'CUSTOM') {
+      // Only auto-adjust if user hasn't set a custom range
+      const smartRange = getSmartDateRange();
+      const currentStart = new Date(metricsStartDate);
+      const currentEnd = new Date(metricsEndDate);
+      const smartStart = new Date(smartRange.start);
+      const smartEnd = new Date(smartRange.end);
+      
+      // Check if current range is significantly different from smart range
+      const startDiff = Math.abs(currentStart - smartStart) / (1000 * 60 * 60 * 24);
+      const endDiff = Math.abs(currentEnd - smartEnd) / (1000 * 60 * 60 * 24);
+      
+      // Only update if difference is more than 1 day
+      if (startDiff > 1 || endDiff > 1) {
+        setMetricsStartDate(smartRange.start);
+        setMetricsEndDate(smartRange.end);
+      }
+    }
+  }, [recentTrades, selectedDuration]);
 
   // -----------------------------
   // HANDLERS
@@ -171,10 +226,13 @@ export default function Dashboard() {
         profit: Number(formData.profit),
         notes: formData.notes,
         image: imageUrl,
+        accountType: formData.accountType,
+        tradeDirection: formData.tradeDirection,
+        stopLossPips: formData.stopLossPips ? Number(formData.stopLossPips) : null,
         date: new Date().toISOString(),
       });
 
-      setFormData({ symbol: "", entry: "", exit: "", lotSize: "", profit: "", notes: "", image: null });
+      setFormData({ symbol: "", entry: "", exit: "", lotSize: "", profit: "", notes: "", image: null, accountType: "STANDARD", tradeDirection: "BUY", stopLossPips: "" });
       setImagePreview(null);
       setShowModal(false);
     } catch (error) {
@@ -203,10 +261,13 @@ export default function Dashboard() {
         profit: Number(formData.profit),
         notes: formData.notes,
         image: imageUrl,
+        accountType: formData.accountType,
+        tradeDirection: formData.tradeDirection,
+        stopLossPips: formData.stopLossPips ? Number(formData.stopLossPips) : null,
         date: selectedDate.toISOString(),
       });
 
-      setFormData({ symbol: "", entry: "", exit: "", lotSize: "", profit: "", notes: "", image: null });
+      setFormData({ symbol: "", entry: "", exit: "", lotSize: "", profit: "", notes: "", image: null, accountType: "STANDARD", tradeDirection: "BUY", stopLossPips: "" });
       setImagePreview(null);
       setIsDayOptionsModalOpen(false);
       setShowModal(false);
@@ -231,31 +292,233 @@ export default function Dashboard() {
     }
   };
 
-  // Reset starting balance to current balance for new period tracking
-  const handleResetBalance = () => {
-    if (window.confirm("Reset starting balance to current balance? This will start tracking a new growth period.")) {
-      setStartingBalance(currentBalance);
-      setLastResetDate(new Date().toISOString());
+  // Edit trade functionality
+  const handleEditTrade = (trade) => {
+    setEditingTrade(trade);
+    setFormData({
+      symbol: trade.symbol,
+      entry: trade.entry.toString(),
+      exit: trade.exit.toString(),
+      lotSize: trade.lotSize.toString(),
+      profit: trade.profit.toString(),
+      notes: trade.notes || "",
+      image: null,
+      accountType: trade.accountType || "STANDARD",
+      tradeDirection: trade.tradeDirection || "BUY",
+      stopLossPips: trade.stopLossPips ? trade.stopLossPips.toString() : "",
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleUpdateTrade = async (e) => {
+    e.preventDefault();
+    if (!user || !editingTrade) return;
+
+    try {
+      let imageUrl = editingTrade.image; // Keep existing image if no new one uploaded
+      
+      if (formData.image) {
+        const storageRef = ref(storage, `trades1/${user.uid}/${Date.now()}_${formData.image.name}`);
+        await uploadBytes(storageRef, formData.image);
+        imageUrl = await getDownloadURL(storageRef);
+      }
+
+      await updateDoc(doc(db, "trades1", editingTrade.id), {
+        symbol: formData.symbol,
+        entry: Number(formData.entry),
+        exit: Number(formData.exit),
+        lotSize: Number(formData.lotSize),
+        profit: Number(formData.profit),
+        notes: formData.notes,
+        image: imageUrl,
+        accountType: formData.accountType,
+        tradeDirection: formData.tradeDirection,
+        stopLossPips: formData.stopLossPips ? Number(formData.stopLossPips) : null,
+      });
+
+      setFormData({ symbol: "", entry: "", exit: "", lotSize: "", profit: "", notes: "", image: null, accountType: "STANDARD", tradeDirection: "BUY", stopLossPips: "" });
+      setImagePreview(null);
+      setEditingTrade(null);
+      setIsEditModalOpen(false);
+    } catch (error) {
+      console.error("Error updating trade:", error);
     }
+  };
+
+  // Save user settings to Firebase
+  const saveUserSettings = async () => {
+    if (!user) return;
+    
+    try {
+      const userSettings = {
+        startingBalance,
+        metricsStartDate,
+        metricsEndDate,
+        selectedDuration,
+        lastUpdated: new Date().toISOString(),
+      };
+      
+      await setDoc(doc(db, "userSettings", user.uid), userSettings);
+      console.log("User settings saved successfully");
+    } catch (error) {
+      console.error("Error saving user settings:", error);
+    }
+  };
+
+  // Load user settings from Firebase with smart defaults
+  const loadUserSettings = async () => {
+    if (!user) return;
+    
+    try {
+      const userSettingsDoc = await getDoc(doc(db, "userSettings", user.uid));
+      if (userSettingsDoc.exists()) {
+        const settings = userSettingsDoc.data();
+        setStartingBalance(settings.startingBalance || 12000);
+        setMetricsStartDate(settings.metricsStartDate || getDefaultDateRange().start);
+        setMetricsEndDate(settings.metricsEndDate || getDefaultDateRange().end);
+        setSelectedDuration(settings.selectedDuration || '30D');
+        console.log("User settings loaded successfully");
+      } else {
+        // No settings exist, use smart defaults
+        console.log("No user settings found, using smart defaults");
+        const smartRange = getSmartDateRange();
+        setMetricsStartDate(smartRange.start);
+        setMetricsEndDate(smartRange.end);
+        setSelectedDuration('30D');
+      }
+    } catch (error) {
+      console.error("Error loading user settings:", error);
+      // Fallback to smart defaults on error
+      const smartRange = getSmartDateRange();
+      setMetricsStartDate(smartRange.start);
+      setMetricsEndDate(smartRange.end);
+      setSelectedDuration('30D');
+    }
+  };
+
+  // Show detailed metrics modal
+  const showMetricsDetails = (metric) => {
+    setSelectedMetric(metric);
+    setIsMetricsModalOpen(true);
+  };
+
+  // Smart date range detection based on trade data
+  const getSmartDateRange = () => {
+    if (recentTrades.length === 0) {
+      return getDefaultDateRange();
+    }
+    
+    // Get the date range of all trades
+    const tradeDates = recentTrades.map(trade => new Date(trade.date));
+    const earliestTrade = new Date(Math.min(...tradeDates));
+    const latestTrade = new Date(Math.max(...tradeDates));
+    
+    // If trades are within 30 days, use that range
+    const daysDiff = (latestTrade - earliestTrade) / (1000 * 60 * 60 * 24);
+    if (daysDiff <= 30) {
+      return {
+        start: earliestTrade.toISOString(),
+        end: latestTrade.toISOString()
+      };
+    }
+    
+    // Otherwise, use last 30 days from latest trade
+    const endDate = new Date(latestTrade);
+    const startDate = new Date(latestTrade);
+    startDate.setDate(startDate.getDate() - 30);
+    
+    return {
+      start: startDate.toISOString(),
+      end: endDate.toISOString()
+    };
+  };
+
+
+  // Duration options for metrics
+  const durationOptions = [
+    { value: '7D', label: 'Last 7 Days', days: 7, description: 'Past week' },
+    { value: '30D', label: 'Last 30 Days', days: 30, description: 'Past month' },
+    { value: '90D', label: 'Last 90 Days', days: 90, description: 'Past quarter' },
+    { value: '1Y', label: 'Last Year', days: 365, description: 'Past year' },
+    { value: 'ALL', label: 'All Time', days: null, description: 'All trades' },
+    { value: 'CUSTOM', label: 'Custom Range', days: null, description: 'Pick dates' }
+  ];
+
+  // Handle duration change with smart defaults
+  const handleDurationChange = (duration) => {
+    setSelectedDuration(duration);
+    
+    if (duration === 'CUSTOM') {
+      // Keep current custom dates - don't change them
+      return;
+    }
+    
+    const option = durationOptions.find(opt => opt.value === duration);
+    if (option && option.days) {
+      // Calculate smart start date
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - option.days);
+      
+      // Set to start of day for better UX
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+      
+      setMetricsStartDate(startDate.toISOString());
+      setMetricsEndDate(endDate.toISOString());
+    } else if (duration === 'ALL') {
+      // Set to include all possible trades
+      const startDate = new Date('2020-01-01');
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date();
+      endDate.setHours(23, 59, 59, 999);
+      
+      setMetricsStartDate(startDate.toISOString());
+      setMetricsEndDate(endDate.toISOString());
+    }
+  };
+
+  // Handle custom start date change
+  const handleCustomStartDateChange = (dateString) => {
+    const startDate = new Date(dateString);
+    startDate.setHours(0, 0, 0, 0);
+    setMetricsStartDate(startDate.toISOString());
+    setSelectedDuration('CUSTOM');
+  };
+
+  // Handle custom end date change
+  const handleCustomEndDateChange = (dateString) => {
+    const endDate = new Date(dateString);
+    endDate.setHours(23, 59, 59, 999);
+    setMetricsEndDate(endDate.toISOString());
+    setSelectedDuration('CUSTOM');
   };
 
   // -----------------------------
   // CALCULATED VARIABLES
   // -----------------------------
-  const dailyPnL = recentTrades.reduce((acc, trade) => acc + (trade.profit || 0), 0);
+  // Filter trades based on selected date range
+  const filteredTrades = recentTrades.filter(trade => {
+    const tradeDate = new Date(trade.date);
+    const startDate = new Date(metricsStartDate);
+    const endDate = new Date(metricsEndDate);
+    return tradeDate >= startDate && tradeDate <= endDate;
+  });
+  
+  const dailyPnL = filteredTrades.reduce((acc, trade) => acc + (trade.profit || 0), 0);
   const currentBalance = startingBalance + dailyPnL;
   
   // Calculate equity curve starting from zero to show growth
   // Sort trades by date (oldest first) for proper equity curve calculation
-  const sortedTrades = [...recentTrades].sort((a, b) => new Date(a.date) - new Date(b.date));
+  const sortedTrades = [...filteredTrades].sort((a, b) => new Date(a.date) - new Date(b.date));
   
   // Enhanced growth metrics
   const totalGrowth = currentBalance - startingBalance;
   const growthPercentage = startingBalance > 0 ? (totalGrowth / startingBalance) * 100 : 0;
   const periodGrowth = totalGrowth; // Growth since last reset
   
-  // Calculate best and worst days
-  const dailyPnLs = recentTrades.reduce((acc, trade) => {
+  // Calculate best and worst days (using filtered trades)
+  const dailyPnLs = filteredTrades.reduce((acc, trade) => {
     const date = new Date(trade.date).toLocaleDateString();
     if (!acc[date]) acc[date] = 0;
     acc[date] += trade.profit || 0;
@@ -286,100 +549,10 @@ export default function Dashboard() {
     { label: "Current Balance", value: currentBalance, color: currentBalance >= 0 ? "text-green-400" : "text-red-500", prefix: "$" },
     { label: "Period Growth", value: periodGrowth, color: periodGrowth >= 0 ? "text-green-400" : "text-red-500", prefix: "$" },
     { label: "Growth %", value: growthPercentage, color: growthPercentage >= 0 ? "text-green-400" : "text-red-500", suffix: "%" },
-    { label: "Trades", value: recentTrades.length, color: "text-white" },
+    { label: "Trades", value: filteredTrades.length, color: "text-white" },
   ];
 
-  const equityCurve = sortedTrades.reduce((acc, t, i) => {
-    const previousEquity = acc[i - 1] || 0;
-    const newEquity = previousEquity + (t.profit || 0);
-    return [...acc, newEquity];
-  }, []);
 
-  const chartData = {
-    labels: sortedTrades.map((t) => new Date(t.date).toLocaleDateString()),
-    datasets: [
-      {
-        label: "Equity Growth",
-        data: equityCurve,
-        fill: true,
-        backgroundColor: "rgba(99, 102, 241, 0.2)",
-        borderColor: "#6366F1",
-        tension: 0.3,
-        pointBackgroundColor: "#6366F1",
-        pointBorderColor: "#fff",
-      },
-    ],
-  };
-
-     const chartOptions = useMemo(() => {
-     const isSmallScreen = windowWidth > 0 ? windowWidth < 768 : false;
-     
-     return {
-       plugins: { 
-         legend: { 
-           display: true,
-           labels: {
-             color: '#ffffff',
-             font: {
-               size: isSmallScreen ? 10 : 12
-             }
-           }
-         } 
-       }, 
-       responsive: true, 
-       maintainAspectRatio: false,
-       interaction: {
-         intersect: false,
-         mode: 'index'
-       },
-       scales: {
-         y: {
-           beginAtZero: true,
-           ticks: {
-             color: '#ffffff',
-             font: {
-               size: isSmallScreen ? 10 : 12
-             },
-             maxTicksLimit: isSmallScreen ? 5 : 8,
-             callback: function(value) {
-               return '$' + value.toLocaleString();
-             }
-           },
-           grid: {
-             color: 'rgba(255, 255, 255, 0.1)'
-           }
-         },
-         x: {
-           ticks: {
-             color: '#ffffff',
-             font: {
-               size: isSmallScreen ? 10 : 12
-             },
-             maxTicksLimit: isSmallScreen ? 6 : 10
-           },
-           grid: {
-             color: 'rgba(255, 255, 255, 0.1)'
-           }
-         }
-       }
-     };
-   }, [windowWidth]);
-
-  // -----------------------------
-  // Monthly P&L Calendar
-  // -----------------------------
-  const tradesInMonth = recentTrades.filter(trade => {
-    const date = new Date(trade.date);
-    return date.getMonth() === selectedMonth && date.getFullYear() === selectedYear;
-  });
-
-  const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
-  const firstDayOfMonth = new Date(selectedYear, selectedMonth, 1).getDay(); // 0=Sun ... 6=Sat
-  const calendarDays = Array.from({ length: firstDayOfMonth }, () => null)
-    .concat(Array.from({ length: daysInMonth }, (_, i) => i + 1));
-
-  const availableYears = Array.from(new Set(recentTrades.map(t => new Date(t.date).getFullYear()))).sort((a, b) => b - a);
-  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
   // -----------------------------
   // RENDER
@@ -446,20 +619,43 @@ export default function Dashboard() {
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2 sm:gap-3 md:gap-4">
               {metrics.map((m, i) => (
-                <div key={i} className="bg-gray-800/80 backdrop-blur-lg p-3 sm:p-4 lg:p-5 rounded-xl shadow-lg border border-gray-700/50 hover:shadow-xl transition-all duration-300 group min-h-[100px] sm:min-h-[120px]">
+                <div 
+                  key={i} 
+                  className="bg-gray-800/80 backdrop-blur-lg p-3 sm:p-4 lg:p-5 rounded-xl shadow-lg border border-gray-700/50 hover:shadow-xl transition-all duration-300 group min-h-[100px] sm:min-h-[120px] cursor-pointer hover:scale-105"
+                  onClick={() => {
+                    if (m.label === "Trades") {
+                      // Scroll to trade history section
+                      document.getElementById('trade-history-section')?.scrollIntoView({ behavior: 'smooth' });
+                    } else {
+                      // Show detailed metrics modal
+                      showMetricsDetails(m);
+                    }
+                  }}
+                  title={`Click to view details for ${m.label}`}
+                >
                   <p className="text-gray-400 text-xs sm:text-sm mb-2 sm:mb-3 font-medium leading-tight">{m.label}</p>
                   {m.editable ? (
                     <input
                       type="number"
                       value={startingBalance}
-                      onChange={(e) => setStartingBalance(Number(e.target.value))}
+                      onChange={(e) => {
+                        setStartingBalance(Number(e.target.value));
+                        // Save settings immediately when starting balance changes
+                        if (user) {
+                          setTimeout(() => saveUserSettings(), 500);
+                        }
+                      }}
                       className="text-base sm:text-lg lg:text-xl font-bold text-white bg-gray-900/70 rounded-lg px-2 sm:px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-600 min-h-[40px]"
+                      onClick={(e) => e.stopPropagation()}
                     />
                   ) : (
                     <p className={`text-base sm:text-lg lg:text-xl xl:text-2xl font-bold ${m.color} group-hover:scale-105 transition-transform duration-200 leading-tight`}>
                       {m.prefix || ""}{m.value.toLocaleString()}{m.suffix || ""}
                     </p>
                   )}
+                  <div className="mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <p className="text-xs text-gray-500">Click for details</p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -468,200 +664,52 @@ export default function Dashboard() {
           {/* ========================================
                PERFORMANCE INSIGHTS SECTION
           ========================================= */}
-          <div className="mb-4 sm:mb-6 lg:mb-8">
-            <h2 className="text-lg sm:text-xl font-bold text-white mb-3 sm:mb-4 flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
-              </svg>
-              Performance Insights
-            </h2>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-              <div className="bg-gray-800/80 backdrop-blur-lg p-3 sm:p-4 lg:p-5 rounded-xl shadow-lg border border-gray-700/50 hover:shadow-xl transition-all duration-300 min-h-[100px] sm:min-h-[120px]">
-                <div className="flex items-center justify-between mb-2 sm:mb-3">
-                  <p className="text-gray-400 text-xs sm:text-sm font-medium">Today's P&L</p>
-                  <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${dailyPnL >= 0 ? 'bg-green-400' : 'bg-red-400'}`}></div>
-                </div>
-                <p className={`text-base sm:text-lg lg:text-xl xl:text-2xl font-bold ${dailyPnL >= 0 ? "text-green-400" : "text-red-500"} leading-tight`}>
-                  {dailyPnL >= 0 ? "+" : ""}${dailyPnL.toLocaleString()}
-                </p>
-              </div>
-              
-              <div className="bg-gray-800/80 backdrop-blur-lg p-3 sm:p-4 lg:p-5 rounded-xl shadow-lg border border-gray-700/50 hover:shadow-xl transition-all duration-300 min-h-[100px] sm:min-h-[120px]">
-                <div className="flex items-center justify-between mb-2 sm:mb-3">
-                  <p className="text-gray-400 text-xs sm:text-sm font-medium">Win Rate</p>
-                  <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-green-400"></div>
-                </div>
-                <p className="text-base sm:text-lg lg:text-xl xl:text-2xl font-bold text-green-400 leading-tight">
-                  {recentTrades.length > 0
-                    ? ((recentTrades.filter(t => t.profit > 0).length / recentTrades.length) * 100).toFixed(1)
-                    : 0}%
-                </p>
-              </div>
-              
-              <div className="bg-gray-800/80 backdrop-blur-lg p-3 sm:p-4 lg:p-5 rounded-xl shadow-lg border border-gray-700/50 hover:shadow-xl transition-all duration-300 min-h-[100px] sm:min-h-[120px]">
-                <div className="flex items-center justify-between mb-2 sm:mb-3">
-                  <p className="text-gray-400 text-xs sm:text-sm font-medium">Max Drawdown</p>
-                  <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-red-400"></div>
-                </div>
-                <p className="text-base sm:text-lg lg:text-xl xl:text-2xl font-bold text-red-400 leading-tight">
-                  ${maxDrawdown.toLocaleString()}
-                </p>
-              </div>
-              
-              <div className="bg-gray-800/80 backdrop-blur-lg p-3 sm:p-4 lg:p-5 rounded-xl shadow-lg border border-gray-700/50 hover:shadow-xl transition-all duration-300 min-h-[100px] sm:min-h-[120px]">
-                <div className="flex items-center justify-between mb-2 sm:mb-3">
-                  <p className="text-gray-400 text-xs sm:text-sm font-medium">Period Reset</p>
-                  <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-purple-400"></div>
-                </div>
-                <p className="text-xs sm:text-sm font-semibold text-gray-300 mb-2 sm:mb-3 leading-tight">
-                  {new Date(lastResetDate).toLocaleDateString()}
-                </p>
-                <button
-                  onClick={handleResetBalance}
-                  className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 hover:scale-105 min-h-[36px]"
-                >
-                  Reset Period
-                </button>
-              </div>
-            </div>
-          </div>
+          <PerInsights
+            filteredTrades={filteredTrades}
+            dailyPnL={dailyPnL}
+            maxDrawdown={maxDrawdown}
+            selectedDuration={selectedDuration}
+            handleDurationChange={handleDurationChange}
+            durationOptions={durationOptions}
+            metricsStartDate={metricsStartDate}
+            metricsEndDate={metricsEndDate}
+            handleCustomStartDateChange={handleCustomStartDateChange}
+            handleCustomEndDateChange={handleCustomEndDateChange}
+          />
 
           {/* ========================================
                EQUITY CURVE CHART SECTION
           ========================================= */}
-          <div className="mb-4 sm:mb-6 lg:mb-8">
-            <h2 className="text-lg sm:text-xl font-bold text-white mb-3 sm:mb-4 flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 text-purple-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
-              </svg>
-              Account Growth Equity Curve
-            </h2>
-            
-            <div className="bg-gray-800/80 backdrop-blur-lg p-2 sm:p-3 lg:p-4 xl:p-6 rounded-xl shadow-lg border border-gray-700/50">
-              <div className="h-48 sm:h-60 md:h-72 lg:h-80 xl:h-96">
-                <Line data={chartData} options={chartOptions} />
-              </div>
-            </div>
-          </div>
+          <EquityCurve 
+            sortedTrades={sortedTrades} 
+            windowWidth={windowWidth} 
+          />
 
           {/* ========================================
                TRADING ACTIVITY SECTION
           ========================================= */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6 lg:gap-8 mb-4 sm:mb-6 lg:mb-8">
             
-            {/* Monthly P&L Calendar */}
-            <div className="bg-gray-800/80 backdrop-blur-lg p-3 sm:p-4 lg:p-6 rounded-xl shadow-lg border border-gray-700/50">
-              <h2 className="text-lg sm:text-xl font-bold text-white mb-3 sm:mb-4 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                </svg>
-                Daily P&L Calendar
-              </h2>
-
-              {/* Month & Year Navigation */}
-              <div className="flex flex-col sm:flex-row justify-between mb-3 sm:mb-4 items-start sm:items-center gap-3 sm:gap-0">
-                <div className="flex gap-2 w-full sm:w-auto justify-center sm:justify-start">
-                  <button
-                    onClick={() => {
-                      if (selectedMonth === 0) {
-                        setSelectedMonth(11);
-                        setSelectedYear(prev => prev - 1);
-                      } else setSelectedMonth(prev => prev - 1);
-                    }}
-                    className="px-3 py-2 bg-gray-700/70 hover:bg-gray-700 rounded-lg transition-colors duration-200 flex items-center justify-center min-h-[40px] min-w-[40px]"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-
-                  <span className="font-semibold px-3 py-2 bg-gray-700/70 rounded-lg text-white text-sm sm:text-base flex items-center justify-center min-h-[40px] flex-1 sm:flex-none">
-                    {new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' })}
-                  </span>
-
-                  <button
-                    onClick={() => {
-                      if (selectedMonth === 11) {
-                        setSelectedMonth(0);
-                        setSelectedYear(prev => prev + 1);
-                      } else setSelectedMonth(prev => prev + 1);
-                    }}
-                    className="px-3 py-2 bg-gray-700/70 hover:bg-gray-700 rounded-lg transition-colors duration-200 flex items-center justify-center min-h-[40px] min-w-[40px]"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                </div>
-
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="bg-gray-700/70 text-white px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-600 text-sm sm:text-base min-h-[40px] w-full sm:w-auto"
-                >
-                  {availableYears.map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Days of week header */}
-              <div className="grid grid-cols-7 gap-1 mb-2">
-                {dayNames.map(day => (
-                  <div key={day} className="text-center text-xs font-semibold text-gray-400 p-1 sm:p-2 truncate min-h-[32px] sm:min-h-[36px] flex items-center justify-center">{day}</div>
-                ))}
-              </div>
-
-              {/* Days */}
-              <div className="grid grid-cols-7 gap-1">
-                {calendarDays.map((day, idx) => {
-                  if (!day) return <div key={idx} className="h-8 sm:h-10 md:h-12 lg:h-14"></div>; // empty slot
-
-                  const dayTrades = tradesInMonth.filter(trade => new Date(trade.date).getDate() === day);
-                  const dayPnL = dayTrades.reduce((sum, t) => sum + (t.profit || 0), 0);
-                  const isToday = day === todayDate && selectedMonth === todayMonth && selectedYear === todayYear;
-
-                  return (
-                    <div
-                      key={day}
-                      className={`h-8 sm:h-10 md:h-12 lg:h-14 flex flex-col items-center justify-center text-xs font-semibold rounded cursor-pointer transition-all duration-200 hover:scale-105 border ${
-                        dayPnL > 0 ? "bg-green-500/20 text-green-400 border-green-500/30" :
-                        dayPnL < 0 ? "bg-red-500/20 text-red-400 border-red-500/30" :
-                        "bg-gray-700/30 text-gray-300 border-gray-600/30"
-                      } ${isToday ? "border-yellow-400 border-2" : ""}`}
-                      title={`Day ${day}\nTotal P&L: ${dayPnL >= 0 ? "+" : ""}${dayPnL}\nTrades: ${dayTrades.length}`}
-                      onClick={() => {
-                        const clickedDate = new Date(selectedYear, selectedMonth, day);
-                        setSelectedDate(clickedDate);
-                        
-                        if (dayTrades.length > 0) {
-                          // Show existing trades modal
-                          setSelectedDayTrades(dayTrades);
-                          setSelectedDay(day);
-                          setIsModalOpen(true);
-                        } else {
-                          // Show day options modal for adding trades
-                          setIsDayOptionsModalOpen(true);
-                        }
-                      }}
-                    >
-                      <span className="font-bold text-xs sm:text-sm leading-none">{day}</span>
-                      <span className="text-[8px] sm:text-[10px] leading-none">{dayPnL >= 0 ? "+" : ""}{dayPnL}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            {/* Trading Calendar */}
+            <TradingCalendar
+              filteredTrades={filteredTrades}
+              selectedDate={selectedDate}
+              setSelectedDate={setSelectedDate}
+              setSelectedDayTrades={setSelectedDayTrades}
+              setSelectedDay={setSelectedDay}
+              setIsModalOpen={setIsModalOpen}
+              setIsDayOptionsModalOpen={setIsDayOptionsModalOpen}
+            />
           </div>
 
           {/* ========================================
                TRADE HISTORY SECTION
           ========================================= */}
-          <div className="mb-4 sm:mb-6 lg:mb-8">
+          <div id="trade-history-section" className="mb-4 sm:mb-6 lg:mb-8">
             <TradeHistory 
-              trades={recentTrades.slice(0, 5)} 
+              trades={filteredTrades.slice(0, 5)} 
               onDeleteTrade={handleDeleteTrade}
+              onEditTrade={handleEditTrade}
             />
           </div>
 
@@ -790,6 +838,145 @@ export default function Dashboard() {
             imagePreview={imagePreview}
             selectedDate={selectedDate}
           />
+
+          {/* Edit Trade Modal */}
+          <AddTradeModal
+            showModal={isEditModalOpen}
+            setShowModal={setIsEditModalOpen}
+            handleSubmit={handleUpdateTrade}
+            formData={formData}
+            handleChange={handleChange}
+            imagePreview={imagePreview}
+            selectedDate={null}
+            editingTrade={editingTrade}
+          />
+
+          {/* Metrics Details Modal */}
+          {isMetricsModalOpen && selectedMetric && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
+              <div className="bg-gray-800/95 backdrop-blur-md p-4 sm:p-6 lg:p-8 rounded-xl shadow-2xl border border-gray-700/50 w-full max-w-2xl max-h-[85vh] overflow-y-auto">
+                <div className="flex justify-between items-center mb-4 sm:mb-6">
+                  <h3 className="text-lg sm:text-xl font-bold text-white">{selectedMetric.label} Details</h3>
+                  <button
+                    onClick={() => setIsMetricsModalOpen(false)}
+                    className="text-gray-400 hover:text-white transition-colors duration-200 p-1 min-h-[40px] min-w-[40px] flex items-center justify-center"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="space-y-4 sm:space-y-6">
+                  {/* Main Value */}
+                  <div className="text-center">
+                    <div className={`text-3xl sm:text-4xl lg:text-5xl font-bold ${selectedMetric.color} mb-2`}>
+                      {selectedMetric.prefix || ""}{selectedMetric.value.toLocaleString()}{selectedMetric.suffix || ""}
+                    </div>
+                    <p className="text-gray-400 text-sm sm:text-base">{selectedMetric.label}</p>
+                  </div>
+
+                  {/* Detailed Information */}
+                  <div className="bg-gray-700/30 rounded-lg p-4 sm:p-6">
+                    {selectedMetric.label === "Current Balance" && (
+                      <div className="space-y-3">
+                        <h4 className="text-white font-semibold mb-3">Balance Breakdown</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="bg-gray-600/30 rounded-lg p-3">
+                            <p className="text-gray-400 text-sm">Starting Balance</p>
+                            <p className="text-white font-semibold">${startingBalance.toLocaleString()}</p>
+                          </div>
+                          <div className="bg-gray-600/30 rounded-lg p-3">
+                            <p className="text-gray-400 text-sm">Total Growth</p>
+                            <p className={`font-semibold ${(selectedMetric.value - startingBalance) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              ${(selectedMetric.value - startingBalance).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-4 p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                          <p className="text-blue-400 text-sm">
+                            <strong>Formula:</strong> Starting Balance + Total P&L from Trades
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedMetric.label === "Period Growth" && (
+                      <div className="space-y-3">
+                        <h4 className="text-white font-semibold mb-3">Growth Analysis</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="bg-gray-600/30 rounded-lg p-3">
+                            <p className="text-gray-400 text-sm">Growth Amount</p>
+                            <p className={`font-semibold ${selectedMetric.value >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              ${selectedMetric.value.toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="bg-gray-600/30 rounded-lg p-3">
+                            <p className="text-gray-400 text-sm">Growth Percentage</p>
+                            <p className={`font-semibold ${growthPercentage >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {growthPercentage.toFixed(2)}%
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-4 p-3 bg-purple-500/10 rounded-lg border border-purple-500/20">
+                          <p className="text-purple-400 text-sm">
+                            <strong>Period:</strong> {new Date(metricsStartDate).toLocaleDateString()} - {new Date(metricsEndDate).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedMetric.label === "Growth %" && (
+                      <div className="space-y-3">
+                        <h4 className="text-white font-semibold mb-3">Percentage Analysis</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="bg-gray-600/30 rounded-lg p-3">
+                            <p className="text-gray-400 text-sm">Growth Percentage</p>
+                            <p className={`font-semibold ${selectedMetric.value >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {selectedMetric.value.toFixed(2)}%
+                            </p>
+                          </div>
+                          <div className="bg-gray-600/30 rounded-lg p-3">
+                            <p className="text-gray-400 text-sm">Total Growth</p>
+                            <p className={`font-semibold ${(currentBalance - startingBalance) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              ${(currentBalance - startingBalance).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-4 p-3 bg-green-500/10 rounded-lg border border-green-500/20">
+                          <p className="text-green-400 text-sm">
+                            <strong>Calculation:</strong> (Current Balance - Starting Balance) / Starting Balance × 100
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Additional Stats */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-gray-600/20 rounded-lg p-3 text-center">
+                      <p className="text-gray-400 text-xs">Total Trades</p>
+                      <p className="text-white font-semibold">{filteredTrades.length}</p>
+                    </div>
+                    <div className="bg-gray-600/20 rounded-lg p-3 text-center">
+                      <p className="text-gray-400 text-xs">Winning Trades</p>
+                      <p className="text-green-400 font-semibold">{filteredTrades.filter(t => t.profit > 0).length}</p>
+                    </div>
+                    <div className="bg-gray-600/20 rounded-lg p-3 text-center">
+                      <p className="text-gray-400 text-xs">Losing Trades</p>
+                      <p className="text-red-400 font-semibold">{filteredTrades.filter(t => t.profit < 0).length}</p>
+                    </div>
+                    <div className="bg-gray-600/20 rounded-lg p-3 text-center">
+                      <p className="text-gray-400 text-xs">Win Rate</p>
+                      <p className="text-blue-400 font-semibold">
+                        {filteredTrades.length > 0 ? ((filteredTrades.filter(t => t.profit > 0).length / filteredTrades.length) * 100).toFixed(1) : 0}%
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
