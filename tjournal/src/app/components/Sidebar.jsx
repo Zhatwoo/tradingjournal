@@ -30,7 +30,7 @@ export default function Sidebar({
       'add-trade': 'Add Trade',
       'history': 'Trade History',
       'suggestions': 'Suggestions',
-      'settings': 'Settings'
+      'setting': 'Settings'
     };
     
     const activeName = activeMap[currentPath] || 'Dashboard';
@@ -40,9 +40,9 @@ export default function Sidebar({
   const menuItems = [
     { name: "Dashboard", icon: <Home size={20} />, href: "/dashboard" },
     { name: "Add Trade", icon: <PlusCircle size={20} />, href: "/dashboard/add-trade" },
-    { name: "Trade History", icon: <List size={20} />, href: "/dashboard/history" },
+    { name: "Trade History", icon: <List size={20} />, href: "/trade-history" },
     { name: "Suggestions", icon: <Lightbulb size={20} />, href: "/dashboard/suggestions" },
-    { name: "Settings", icon: <Settings size={20} />, href: "/dashboard/settings" },
+    { name: "Settings", icon: <Settings size={20} />, href: "/setting" },
   ];
 
   const handleLogout = async () => {
@@ -59,7 +59,7 @@ export default function Sidebar({
       {/* Mobile Toggle Button - Only show on mobile */}
       {isMobile && (
         <button
-          className="md:hidden fixed top-4 left-4 z-40 flex items-center justify-center w-10 h-10 rounded-full bg-gray-800/70 backdrop-blur-md text-white shadow-lg border border-gray-700/50"
+          className="lg:hidden fixed top-4 left-4 z-40 flex items-center justify-center w-10 h-10 rounded-full bg-gray-800/70 backdrop-blur-md text-white shadow-lg border border-gray-700/50"
           onClick={() => setIsMobileOpen(true)}
           aria-label="Open menu"
         >
@@ -69,7 +69,7 @@ export default function Sidebar({
 
       {/* Desktop Sidebar */}
       <aside
-        className={`hidden md:flex fixed top-0 left-0 h-screen bg-gray-900/90 backdrop-blur-md text-white flex-col justify-between
+        className={`hidden lg:flex fixed top-0 left-0 h-screen bg-gray-900/90 backdrop-blur-md text-white flex-col justify-between
           transition-all duration-300 ease-in-out z-30 overflow-hidden
           ${isOpen ? "w-64" : "w-16"} border-r border-gray-700/50`}
       >
@@ -178,7 +178,7 @@ export default function Sidebar({
       {!isOpen && !isMobile && (
         <button
           onClick={() => setIsOpen(true)}
-          className="hidden md:flex fixed top-4 left-4 z-30 items-center justify-center w-8 h-8 rounded bg-gray-800/50 backdrop-blur-md text-white transition hover:bg-gray-700/50"
+          className="hidden lg:flex fixed top-4 left-4 z-30 items-center justify-center w-8 h-8 rounded bg-gray-800/50 backdrop-blur-md text-white transition hover:bg-gray-700/50"
           aria-label="Expand sidebar"
         >
           <Menu size={18} />
@@ -188,7 +188,7 @@ export default function Sidebar({
       {/* Mobile Sidebar Overlay */}
       {isMobileOpen && isMobile && (
         <div 
-          className="md:hidden fixed inset-0 bg-black/70 z-40 transition-opacity duration-300 backdrop-blur-sm"
+          className="lg:hidden fixed inset-0 bg-black/70 z-40 transition-opacity duration-300 backdrop-blur-sm"
           onClick={() => setIsMobileOpen(false)}
           aria-hidden="true"
         />
@@ -196,7 +196,7 @@ export default function Sidebar({
 
       {/* Mobile Sidebar */}
       <aside
-        className={`md:hidden fixed top-0 left-0 h-full bg-gray-900/95 backdrop-blur-md text-white flex flex-col justify-between shadow-xl z-50
+        className={`lg:hidden fixed top-0 left-0 h-full bg-gray-900/95 backdrop-blur-md text-white flex flex-col justify-between shadow-xl z-50
           transition-transform duration-300 ease-in-out
           ${isMobileOpen ? "translate-x-0" : "-translate-x-full"} w-72 border-r border-gray-700/50`}
       >
@@ -269,7 +269,7 @@ export default function Sidebar({
 
       {/* Content shift for desktop sidebar */}
       {!isMobile && (
-        <div className={`hidden md:block transition-all duration-300 ${isOpen ? "md:ml-64" : "md:ml-16"}`} />
+        <div className={`hidden lg:block transition-all duration-300 ${isOpen ? "lg:ml-64" : "lg:ml-16"}`} />
       )}
     </>
   );
