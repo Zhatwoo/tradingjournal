@@ -6,7 +6,7 @@ import { User, Settings, Lightbulb, PlusCircle } from "lucide-react";
 export default function DashboardHeader({ username = "Trader", balance = 12500, dailyPnL = 320 }) {
   const router = useRouter();
 
-  const handleProfile = () => router.push("/profile");
+  const handleProfile = () => router.push("/about");
   const handleSettings = () => router.push("/setting");
   const handleSuggestions = () => router.push("/suggestions");
   const handleAddTrade = () => router.push("/dashboard/add-trade");
@@ -43,9 +43,10 @@ export default function DashboardHeader({ username = "Trader", balance = 12500, 
         {/* Quick Actions */}
         <div className="flex gap-2">
           <button
-            onClick={handleAddTrade}
+            onClick={handleProfile}
             className="flex items-center gap-1 px-3 py-1 rounded bg-green-600 hover:bg-green-500 transition text-xs"
-                    >
+            title="View Profile"
+          >
             <User size={16} />
           </button>
           <button

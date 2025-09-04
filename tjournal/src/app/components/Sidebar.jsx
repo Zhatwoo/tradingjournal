@@ -27,8 +27,8 @@ export default function Sidebar({
     const currentPath = pathname.split('/').pop() || 'dashboard';
     const activeMap = {
       'dashboard': 'Dashboard',
-      'add-trade': 'Add Trade',
-      'history': 'Trade History',
+      'addtrade': 'Add Trade',
+      'tradehistory': 'Trade History',
       'suggestions': 'Suggestions',
       'setting': 'Settings'
     };
@@ -39,8 +39,8 @@ export default function Sidebar({
 
   const menuItems = [
     { name: "Dashboard", icon: <Home size={20} />, href: "/dashboard" },
-    { name: "Add Trade", icon: <PlusCircle size={20} />, href: "/dashboard/add-trade" },
-    { name: "Trade History", icon: <List size={20} />, href: "/trade-history" },
+    { name: "Add Trade", icon: <PlusCircle size={20} />, href: "/addtrade" },
+    { name: "Trade History", icon: <List size={20} />, href: "/tradehistory" },
     { name: "Suggestions", icon: <Lightbulb size={20} />, href: "/dashboard/suggestions" },
     { name: "Settings", icon: <Settings size={20} />, href: "/setting" },
   ];
@@ -103,8 +103,8 @@ export default function Sidebar({
 
         {/* User Info - Only show when expanded */}
         {isOpen && (
-          <div className="flex items-center gap-3 p-4 transition-all duration-300">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center font-semibold text-white text-lg flex-shrink-0">
+          <div className="flex items-center gap-3 px-4 py-2 transition-all duration-300">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center font-semibold text-white text-sm flex-shrink-0">
               {username[0].toUpperCase()}
             </div>
             <div className="flex flex-col min-w-0">
@@ -115,12 +115,12 @@ export default function Sidebar({
         )}
 
         {/* Menu Items */}
-        <nav className="flex flex-col gap-2 px-3 mt-2 flex-1">
+        <nav className="flex flex-col gap-1 px-3 mt-1 flex-1">
           {menuItems.map((item) => (
             <Link
               key={item.name}
               href={item.href}
-              className={`relative flex items-center gap-3 p-3 rounded-xl transition-all duration-200 group
+              className={`relative flex items-center gap-3 p-2 rounded-xl transition-all duration-200 group
                 ${isOpen ? "justify-start" : "justify-center"}
                 ${active === item.name
                   ? "bg-gradient-to-r from-blue-600/80 to-purple-600/80 text-white shadow-lg backdrop-blur-md"
@@ -147,10 +147,10 @@ export default function Sidebar({
         </nav>
 
         {/* Footer with Logout */}
-        <div className="mt-auto p-4 border-t border-gray-700/50">
+        <div className="mt-auto p-3 border-t border-gray-700/50">
           <button
             onClick={handleLogout}
-            className={`flex items-center gap-3 w-full p-3 rounded-xl bg-red-600/80 hover:bg-red-700/80 transition-colors duration-200 text-white font-medium backdrop-blur-md
+            className={`flex items-center gap-3 w-full p-2 rounded-xl bg-red-600/80 hover:bg-red-700/80 transition-colors duration-200 text-white font-medium backdrop-blur-md
               ${isOpen ? "justify-start" : "justify-center"} group border border-red-500/30`}
             aria-label="Logout"
           >
@@ -167,7 +167,7 @@ export default function Sidebar({
           </button>
 
           {isOpen && (
-            <div className="text-center text-gray-400 mt-4 text-xs">
+            <div className="text-center text-gray-400 mt-2 text-xs">
               TJournal© 2025
             </div>
           )}
@@ -201,7 +201,7 @@ export default function Sidebar({
           ${isMobileOpen ? "translate-x-0" : "-translate-x-full"} w-72 border-r border-gray-700/50`}
       >
         {/* Header */}
-        <div className="p-5 border-b border-gray-700/50 flex items-center justify-between">
+        <div className="p-4 border-b border-gray-700/50 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center font-semibold text-white flex-shrink-0">
               {username[0].toUpperCase()}
@@ -221,7 +221,7 @@ export default function Sidebar({
         </div>
 
         {/* User Info */}
-        <div className="flex items-center gap-4 p-5">
+        <div className="flex items-center gap-3 p-4">
           <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center font-semibold text-white text-xl flex-shrink-0">
             {username[0].toUpperCase()}
           </div>
@@ -232,12 +232,12 @@ export default function Sidebar({
         </div>
 
         {/* Menu Items */}
-        <nav className="flex flex-col gap-2 px-4 mt-2 flex-1">
+        <nav className="flex flex-col gap-1 px-4 mt-1 flex-1">
           {menuItems.map((item) => (
             <Link
               key={item.name}
               href={item.href}
-              className={`flex items-center gap-4 p-4 rounded-xl transition-all duration-200
+              className={`flex items-center gap-3 p-3 rounded-xl transition-all duration-200
                 ${active === item.name
                   ? "bg-gradient-to-r from-blue-600/80 to-purple-600/80 text-white shadow-lg backdrop-blur-md"
                   : "hover:bg-gray-800/50 text-gray-200 backdrop-blur-sm"}`}
@@ -252,25 +252,21 @@ export default function Sidebar({
         </nav>
 
         {/* Footer with Logout */}
-        <div className="mt-auto p-5 border-t border-gray-700/50">
+        <div className="mt-auto p-4 border-t border-gray-700/50">
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 w-full p-4 rounded-xl bg-red-600/80 hover:bg-red-700/80 transition-colors duration-200 text-white font-medium backdrop-blur-md border border-red-500/30"
+            className="flex items-center gap-3 w-full p-3 rounded-xl bg-red-600/80 hover:bg-red-700/80 transition-colors duration-200 text-white font-medium backdrop-blur-md border border-red-500/30"
           >
             <LogOut size={20} className="flex-shrink-0" />
             <span className="text-sm">Logout</span>
           </button>
 
-          <div className="text-center text-gray-400 mt-4 text-xs">
+          <div className="text-center text-gray-400 mt-2 text-xs">
             TJournal © 2025
           </div>
         </div>
       </aside>
 
-      {/* Content shift for desktop sidebar */}
-      {!isMobile && (
-        <div className={`hidden lg:block transition-all duration-300 ${isOpen ? "lg:ml-64" : "lg:ml-16"}`} />
-      )}
     </>
   );
 }

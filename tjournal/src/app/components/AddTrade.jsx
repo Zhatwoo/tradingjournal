@@ -3,8 +3,9 @@
 
 import { useState, useEffect } from 'react';
 
-export default function AddTradeModal({ showModal, setShowModal, handleSubmit, formData, handleChange }) {
+export default function AddTradeModal({ showModal, setShowModal, handleSubmit, formData, handleChange, selectedDate, loading = false }) {
   const [imagePreview, setImagePreview] = useState(null);
+  const [pastedImage, setPastedImage] = useState(null);
 
   // Update image preview when formData.image changes
   useEffect(() => {
@@ -16,6 +17,52 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
       setImagePreview(null);
     }
   }, [formData.image]);
+
+  // Handle paste events for screenshots
+  const handlePaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.indexOf('image') !== -1) {
+        const file = item.getAsFile();
+        if (file) {
+          // Create a new File object with a proper name
+          const imageFile = new File([file], `screenshot-${Date.now()}.png`, {
+            type: file.type,
+            lastModified: Date.now()
+          });
+          
+          // Update form data with the pasted image
+          const event = {
+            target: {
+              name: 'image',
+              files: [imageFile]
+            }
+          };
+          handleChange(event);
+          
+          // Show preview
+          const fileReader = new FileReader();
+          fileReader.onload = () => setPastedImage(fileReader.result);
+          fileReader.readAsDataURL(file);
+          
+          // Add note about pasted image
+          if (!formData.notes.includes('📸 Screenshot pasted')) {
+            const event2 = {
+              target: {
+                name: 'notes',
+                value: formData.notes + (formData.notes ? '\n\n' : '') + '📸 Screenshot pasted from clipboard'
+              }
+            };
+            handleChange(event2);
+          }
+        }
+        break;
+      }
+    }
+  };
 
   // Calculate position size and other metrics
   const calculateMetrics = () => {
@@ -38,7 +85,19 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div className="bg-gray-800 p-6 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-semibold mb-6 text-center text-white">Add New Trade</h2>
+        <div className="text-center mb-6">
+          <h2 className="text-xl font-semibold text-white">Add New Trade</h2>
+          {selectedDate && (
+            <p className="text-sm text-gray-400 mt-1">
+              For {selectedDate.toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })}
+            </p>
+          )}
+        </div>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Symbol and Lot Size Row */}
@@ -134,20 +193,37 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
 
           {/* Notes */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Trade Notes</label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Trade Notes
+              <span className="text-xs text-gray-400 ml-2">(Ctrl+V to paste screenshots)</span>
+            </label>
             <textarea
               name="notes"
-              placeholder="Enter trade analysis, strategy, or observations..."
+              placeholder="Enter trade analysis, strategy, or observations... (Ctrl+V to paste screenshots)"
               value={formData.notes}
               onChange={handleChange}
+              onPaste={handlePaste}
               rows="3"
               className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
+            {pastedImage && (
+              <div className="mt-2 p-2 bg-green-900/20 border border-green-500/30 rounded-lg">
+                <p className="text-xs text-green-400 mb-2">📸 Screenshot pasted successfully!</p>
+                <img
+                  src={pastedImage}
+                  alt="Pasted Screenshot"
+                  className="h-24 object-contain rounded border border-gray-600"
+                />
+              </div>
+            )}
           </div>
 
           {/* Image Upload */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Trade Screenshot</label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Trade Screenshot
+              <span className="text-xs text-gray-400 ml-2">(Upload file or paste with Ctrl+V)</span>
+            </label>
             <input
               type="file"
               name="image"
@@ -155,13 +231,16 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
               onChange={handleChange}
               className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
             />
-            {imagePreview && (
+            {(imagePreview || pastedImage) && (
               <div className="mt-3">
                 <img
-                  src={imagePreview}
+                  src={imagePreview || pastedImage}
                   alt="Trade Preview"
                   className="h-32 object-contain rounded-lg border border-gray-600"
                 />
+                {pastedImage && (
+                  <p className="text-xs text-green-400 mt-1">📸 Image pasted from clipboard</p>
+                )}
               </div>
             )}
           </div>
@@ -177,9 +256,13 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
             </button>
             <button
               type="submit"
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105"
+              disabled={loading}
+              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center gap-2"
             >
-              Add Trade
+              {loading && (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              )}
+              {loading ? 'Adding Trade...' : 'Add Trade'}
             </button>
           </div>
         </form>
