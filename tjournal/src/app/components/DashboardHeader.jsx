@@ -7,7 +7,7 @@ export default function DashboardHeader({ username = "Trader", balance = 12500, 
   const router = useRouter();
 
   const handleProfile = () => router.push("/profile");
-  const handleSettings = () => router.push("/settings");
+  const handleSettings = () => router.push("/setting");
   const handleSuggestions = () => router.push("/suggestions");
   const handleAddTrade = () => router.push("/dashboard/add-trade");
 
