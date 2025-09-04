@@ -34,6 +34,7 @@ export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(0);
 
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
@@ -57,6 +58,8 @@ export default function Dashboard() {
   const [selectedDayTrades, setSelectedDayTrades] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDay, setSelectedDay] = useState(null);
+  const [isDayOptionsModalOpen, setIsDayOptionsModalOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(null);
 
   // -----------------------------
   // Month & Year for Calendar
@@ -74,9 +77,13 @@ export default function Dashboard() {
   // -----------------------------
   useEffect(() => {
     const checkScreenSize = () => {
-      const mobile = window.innerWidth < 1024; // Changed from 768 to 1024 for better tablet support
-      setIsMobile(mobile);
-      setSidebarOpen(!mobile);
+      if (typeof window !== 'undefined') {
+        const width = window.innerWidth;
+        const mobile = width < 1024; // Changed from 768 to 1024 for better tablet support
+        setWindowWidth(width);
+        setIsMobile(mobile);
+        setSidebarOpen(!mobile);
+      }
     };
     checkScreenSize();
     
@@ -87,11 +94,13 @@ export default function Dashboard() {
       timeoutId = setTimeout(checkScreenSize, 150);
     };
     
-    window.addEventListener('resize', debouncedResize);
-    return () => {
-      window.removeEventListener('resize', debouncedResize);
-      clearTimeout(timeoutId);
-    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', debouncedResize);
+      return () => {
+        window.removeEventListener('resize', debouncedResize);
+        clearTimeout(timeoutId);
+      };
+    }
   }, []);
 
   useEffect(() => {
@@ -167,6 +176,39 @@ export default function Dashboard() {
 
       setFormData({ symbol: "", entry: "", exit: "", lotSize: "", profit: "", notes: "", image: null });
       setImagePreview(null);
+      setShowModal(false);
+    } catch (error) {
+      console.error("Error adding trade:", error);
+    }
+  };
+
+  const handleSubmitForDate = async (e) => {
+    e.preventDefault();
+    if (!user || !selectedDate) return;
+
+    try {
+      let imageUrl = null;
+      if (formData.image) {
+        const storageRef = ref(storage, `trades1/${user.uid}/${Date.now()}_${formData.image.name}`);
+        await uploadBytes(storageRef, formData.image);
+        imageUrl = await getDownloadURL(storageRef);
+      }
+
+      await addDoc(collection(db, "trades1"), {
+        userId: user.uid,
+        symbol: formData.symbol,
+        entry: Number(formData.entry),
+        exit: Number(formData.exit),
+        lotSize: Number(formData.lotSize),
+        profit: Number(formData.profit),
+        notes: formData.notes,
+        image: imageUrl,
+        date: selectedDate.toISOString(),
+      });
+
+      setFormData({ symbol: "", entry: "", exit: "", lotSize: "", profit: "", notes: "", image: null });
+      setImagePreview(null);
+      setIsDayOptionsModalOpen(false);
       setShowModal(false);
     } catch (error) {
       console.error("Error adding trade:", error);
@@ -269,55 +311,59 @@ export default function Dashboard() {
     ],
   };
 
-     const chartOptions = useMemo(() => ({ 
-     plugins: { 
-       legend: { 
-         display: true,
-         labels: {
-           color: '#ffffff',
-           font: {
-             size: window.innerWidth < 768 ? 10 : 12
+     const chartOptions = useMemo(() => {
+     const isSmallScreen = windowWidth > 0 ? windowWidth < 768 : false;
+     
+     return {
+       plugins: { 
+         legend: { 
+           display: true,
+           labels: {
+             color: '#ffffff',
+             font: {
+               size: isSmallScreen ? 10 : 12
+             }
            }
-         }
-       } 
-     }, 
-     responsive: true, 
-     maintainAspectRatio: false,
-     interaction: {
-       intersect: false,
-       mode: 'index'
-     },
-     scales: {
-       y: {
-         beginAtZero: true,
-         ticks: {
-           color: '#ffffff',
-           font: {
-             size: window.innerWidth < 768 ? 10 : 12
-           },
-           maxTicksLimit: window.innerWidth < 768 ? 5 : 8,
-           callback: function(value) {
-             return '$' + value.toLocaleString();
-           }
-         },
-         grid: {
-           color: 'rgba(255, 255, 255, 0.1)'
-         }
+         } 
+       }, 
+       responsive: true, 
+       maintainAspectRatio: false,
+       interaction: {
+         intersect: false,
+         mode: 'index'
        },
-       x: {
-         ticks: {
-           color: '#ffffff',
-           font: {
-             size: window.innerWidth < 768 ? 10 : 12
+       scales: {
+         y: {
+           beginAtZero: true,
+           ticks: {
+             color: '#ffffff',
+             font: {
+               size: isSmallScreen ? 10 : 12
+             },
+             maxTicksLimit: isSmallScreen ? 5 : 8,
+             callback: function(value) {
+               return '$' + value.toLocaleString();
+             }
            },
-           maxTicksLimit: window.innerWidth < 768 ? 6 : 10
+           grid: {
+             color: 'rgba(255, 255, 255, 0.1)'
+           }
          },
-         grid: {
-           color: 'rgba(255, 255, 255, 0.1)'
+         x: {
+           ticks: {
+             color: '#ffffff',
+             font: {
+               size: isSmallScreen ? 10 : 12
+             },
+             maxTicksLimit: isSmallScreen ? 6 : 10
+           },
+           grid: {
+             color: 'rgba(255, 255, 255, 0.1)'
+           }
          }
        }
-     }
-   }), [isMobile]);
+     };
+   }, [windowWidth]);
 
   // -----------------------------
   // Monthly P&L Calendar
@@ -359,7 +405,7 @@ export default function Dashboard() {
         />
 
                  {/* Main content */}
-         <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarOpen && !isMobile ? 'lg:ml-64' : 'lg:ml-16'} ml-0 p-2 sm:p-3 md:p-4 lg:p-6 xl:p-8 overflow-x-hidden`}>
+         <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarOpen && !isMobile ? 'lg:ml-64' : 'lg:ml-16'} ml-0 p-2 sm:p-3 md:p-4 lg:p-6 xl:p-8 overflow-x-hidden min-h-screen`}>
 
           {/* ========================================
                HEADER SECTION
@@ -586,10 +632,18 @@ export default function Dashboard() {
                       } ${isToday ? "border-yellow-400 border-2" : ""}`}
                       title={`Day ${day}\nTotal P&L: ${dayPnL >= 0 ? "+" : ""}${dayPnL}\nTrades: ${dayTrades.length}`}
                       onClick={() => {
-                        if (dayTrades.length === 0) return;
-                        setSelectedDayTrades(dayTrades);
-                        setSelectedDay(day);
-                        setIsModalOpen(true);
+                        const clickedDate = new Date(selectedYear, selectedMonth, day);
+                        setSelectedDate(clickedDate);
+                        
+                        if (dayTrades.length > 0) {
+                          // Show existing trades modal
+                          setSelectedDayTrades(dayTrades);
+                          setSelectedDay(day);
+                          setIsModalOpen(true);
+                        } else {
+                          // Show day options modal for adding trades
+                          setIsDayOptionsModalOpen(true);
+                        }
                       }}
                     >
                       <span className="font-bold text-xs sm:text-sm leading-none">{day}</span>
@@ -606,7 +660,7 @@ export default function Dashboard() {
           ========================================= */}
           <div className="mb-4 sm:mb-6 lg:mb-8">
             <TradeHistory 
-              trades={recentTrades} 
+              trades={recentTrades.slice(0, 5)} 
               onDeleteTrade={handleDeleteTrade}
             />
           </div>
@@ -672,14 +726,69 @@ export default function Dashboard() {
              </div>
            )}
 
+          {/* Day Options Modal */}
+          {isDayOptionsModalOpen && selectedDate && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
+              <div className="bg-gray-800/95 backdrop-blur-md p-4 sm:p-6 rounded-xl shadow-2xl border border-gray-700/50 w-full max-w-md">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-white">
+                    Add Trade for {selectedDate.toLocaleDateString('en-US', { 
+                      weekday: 'long', 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </h3>
+                  <button
+                    onClick={() => setIsDayOptionsModalOpen(false)}
+                    className="text-gray-400 hover:text-white transition-colors duration-200 p-1"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                
+                <div className="space-y-4">
+                  <p className="text-gray-300 text-sm">
+                    This day has no trades yet. Would you like to add a trade for this date?
+                  </p>
+                  
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        setIsDayOptionsModalOpen(false);
+                        setShowModal(true);
+                      }}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                      </svg>
+                      Add Trade
+                    </button>
+                    
+                    <button
+                      onClick={() => setIsDayOptionsModalOpen(false)}
+                      className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors duration-200"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Add Trade Modal */}
           <AddTradeModal
             showModal={showModal}
             setShowModal={setShowModal}
-            handleSubmit={handleSubmit}
+            handleSubmit={selectedDate ? handleSubmitForDate : handleSubmit}
             formData={formData}
             handleChange={handleChange}
             imagePreview={imagePreview}
+            selectedDate={selectedDate}
           />
         </div>
       </div>

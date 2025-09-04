@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth, db } from '../lib/firebase';
 import { updateProfile, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { Eye, EyeOff, Save, User, Shield, Bell, Palette, BarChart3, CreditCard, LogOut, ArrowLeft } from 'lucide-react';
 
 export default function Settings() {
@@ -12,6 +12,8 @@ export default function Settings() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
+  const [lastSaved, setLastSaved] = useState(null);
   
   // Form states
   const [displayName, setDisplayName] = useState('');
@@ -64,9 +66,18 @@ export default function Settings() {
         if (userData.settings) {
           setSettings(prev => ({ ...prev, ...userData.settings }));
         }
+      } else {
+        // Create user document if it doesn't exist
+        await setDoc(doc(db, 'users', userId), {
+          settings: settings,
+          displayName: displayName,
+          createdAt: new Date().toISOString(),
+          lastUpdated: new Date().toISOString()
+        });
       }
     } catch (error) {
       console.error('Error loading settings:', error);
+      setMessage({ type: 'error', text: 'Failed to load settings. Please refresh the page.' });
     }
   };
 
@@ -123,17 +134,48 @@ export default function Settings() {
     }
   };
 
+  // Auto-save function
+  const autoSaveSettings = useCallback(async () => {
+    if (!user || !autoSaveEnabled) return;
+    
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        settings: settings,
+        lastUpdated: new Date().toISOString(),
+        displayName: displayName
+      });
+      setLastSaved(new Date().toISOString());
+    } catch (error) {
+      console.error('Auto-save error:', error);
+    }
+  }, [user, settings, displayName, autoSaveEnabled]);
+
+  // Auto-save effect
+  useEffect(() => {
+    if (!user) return;
+    
+    const timeoutId = setTimeout(() => {
+      autoSaveSettings();
+    }, 2000); // Auto-save after 2 seconds of inactivity
+
+    return () => clearTimeout(timeoutId);
+  }, [settings, displayName, autoSaveSettings]);
+
   const handleSaveSettings = async () => {
     if (!user) return;
     
     setLoading(true);
     try {
       await updateDoc(doc(db, 'users', user.uid), {
-        settings: settings
+        settings: settings,
+        lastUpdated: new Date().toISOString(),
+        displayName: displayName
       });
+      setLastSaved(new Date().toISOString());
       setMessage({ type: 'success', text: 'Settings saved successfully!' });
       setTimeout(() => setMessage({ type: '', text: '' }), 3000);
     } catch (error) {
+      console.error('Error saving settings:', error);
       setMessage({ type: 'error', text: 'Failed to save settings. Please try again.' });
     } finally {
       setLoading(false);
@@ -176,6 +218,19 @@ export default function Settings() {
               : 'bg-red-500/10 text-red-300 border-red-500/20'
           }`}>
             {message.text}
+          </div>
+        )}
+
+        {/* Auto-save Status */}
+        {lastSaved && (
+          <div className="mb-4 p-3 rounded-lg bg-blue-500/10 text-blue-300 border border-blue-500/20 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="text-sm">Settings auto-saved</span>
+            </div>
+            <span className="text-xs text-gray-400">
+              {new Date(lastSaved).toLocaleTimeString()}
+            </span>
           </div>
         )}
 
@@ -468,6 +523,16 @@ export default function Settings() {
                       ...prev,
                       notifications: { ...prev.notifications, weeklyReports: e.target.checked }
                     }))}
+                    className="rounded bg-gray-700/70 border-gray-600 text-blue-500 focus:ring-blue-500/50"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-300">Auto-save Settings</span>
+                  <input
+                    type="checkbox"
+                    checked={autoSaveEnabled}
+                    onChange={(e) => setAutoSaveEnabled(e.target.checked)}
                     className="rounded bg-gray-700/70 border-gray-600 text-blue-500 focus:ring-blue-500/50"
                   />
                 </div>
