@@ -8,7 +8,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Sidebar from '../components/Sidebar';
 import AddTradeModal from '../components/AddTrade';
 import { ArrowLeft } from 'lucide-react';
-import { calculateTradeProfitLoss } from '../lib/forexCalculations';
+import { calculateTradeProfitLoss } from '../utils/forexCalculations';
 
 export default function AddTradePage() {
   const router = useRouter();

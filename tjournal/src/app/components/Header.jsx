@@ -32,6 +32,15 @@ export default function Header() {
     setIsOpen(false); // close mobile menu if open
   };
 
+  // Smooth scroll to About section (Creators section)
+  const scrollToAbout = () => {
+    const section = document.getElementById("about");
+    if (section) {
+      section.scrollIntoView({ behavior: "smooth" });
+    }
+    setIsOpen(false); // close mobile menu if open
+  };
+
   return (
     <header className="bg-gray-900/90 backdrop-blur-md border-b border-gray-800 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto flex justify-between items-center py-5 px-6 sm:px-8">
@@ -57,9 +66,12 @@ export default function Header() {
             >
               Features
             </span>
-            <a href="#about" className="text-gray-300 hover:text-white transition-colors text-base font-medium">
+            <span
+              onClick={scrollToAbout}
+              className="text-gray-300 hover:text-white transition-colors text-base font-medium cursor-pointer"
+            >
               About
-            </a>
+            </span>
           </nav>
           
           <div className="flex gap-3">
@@ -81,7 +93,7 @@ export default function Header() {
               onClick={redirectToRegister}
               className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 transition-all duration-300 font-medium text-white shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30"
             >
-              Get Started
+              Register
             </button>
           </div>
         </div>
@@ -107,12 +119,12 @@ export default function Header() {
               >
                 Features
               </span>
-              <a 
-                href="#about" 
-                className="px-5 py-4 rounded-lg text-gray-300 hover:text-white hover:bg-gray-800 transition-colors text-base"
+              <span
+                onClick={scrollToAbout}
+                className="px-5 py-4 rounded-lg text-gray-300 hover:text-white hover:bg-gray-800 transition-colors text-base cursor-pointer"
               >
                 About
-              </a>
+              </span>
             </nav>
             
             <div className="flex flex-col gap-4 pt-3 border-t border-gray-800">
