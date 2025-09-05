@@ -13,7 +13,7 @@ import {
   getAvailablePairs,
   getAccountTypes,
   ACCOUNT_TYPES
-} from '../lib/forexCalculations';
+} from '../utils/forexCalculations';
 
 export default function AddTradeModal({ showModal, setShowModal, handleSubmit, formData, handleChange, selectedDate, loading = false }) {
   const [imagePreview, setImagePreview] = useState(null);
