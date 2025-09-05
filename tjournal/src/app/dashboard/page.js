@@ -12,6 +12,7 @@ import TradeHistory from '../components/TradeHistory';
 import TradingCalendar from '../components/TradingCalendar';
 import EquityCurve from '../components/EquityCurve';
 import PerInsights from '../components/PerInsights';
+import Footer from '../components/Footer';
 import { Line } from "react-chartjs-2";
 
 import {
@@ -979,6 +980,8 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      <Footer />
 
              <style jsx global>{`
          @keyframes blob {

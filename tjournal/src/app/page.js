@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { TrendingUp, BarChart3, Camera, ChevronRight, CheckCircle, ArrowRight } from "lucide-react"; 
 import Header from "./components/Header";
+import CreatorsSection from "./components/CreatorsSection";
+import Footer from "./components/Footer";
 
 export default function LandingPage() {
   return (
@@ -49,102 +51,227 @@ export default function LandingPage() {
               
           </div>
           
-          {/* Stats preview */}
-          <div className="grid grid-cols-3 gap-8 mt-16 max-w-md mx-auto">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-white">99%</div>
-              <div className="text-sm text-gray-400">Accuracy</div>
+          {/* Why Choose TJournal */}
+          <div className="mt-[10vh] max-w-5xl mx-auto">
+            <div className="flex flex-col lg:flex-row gap-8 items-center">
+              {/* Left side - Main benefit */}
+              <div className="flex-1 text-center lg:text-left group">
+                <div className="inline-block p-6 bg-gradient-to-r from-green-500/20 to-blue-500/20 rounded-2xl border-2 border-green-500/40 mb-6 hover:from-green-500/30 hover:to-blue-500/30 hover:border-green-500/60 hover:scale-105 transition-all duration-300 cursor-pointer group-hover:shadow-lg group-hover:shadow-green-500/20">
+                  <div className="text-4xl font-bold text-green-400 mb-2 group-hover:text-green-300 transition-colors duration-300">100% Free</div>
+                  <div className="text-lg text-white group-hover:text-gray-100 transition-colors duration-300">No subscriptions, no hidden fees</div>
+                  <div className="mt-2 text-sm text-green-300 opacity-0 group-hover:opacity-100 transition-opacity duration-300">🚀 Start trading smarter today!</div>
+                </div>
+                <p className="text-gray-300 text-lg leading-relaxed group-hover:text-gray-200 transition-colors duration-300">
+                  Complete trading journal platform with advanced analytics, 
+                  visual documentation, and performance tracking - all at no cost.
+                </p>
+              </div>
+              
+              {/* Right side - Secondary benefits */}
+              <div className="flex-1 space-y-4">
+                <div className="flex items-center gap-4 p-4 bg-gray-800/30 rounded-xl border-2 border-gray-700/60 backdrop-blur-sm hover:bg-gray-800/50 hover:border-blue-500/50 hover:scale-105 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300 cursor-pointer group">
+                  <div className="p-3 bg-blue-500/10 rounded-full group-hover:bg-blue-500/20 group-hover:scale-110 transition-all duration-300">
+                    <svg className="w-6 h-6 text-blue-400 group-hover:text-blue-300 transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="font-semibold text-white group-hover:text-blue-100 transition-colors duration-300">Bank-Level Security</div>
+                    <div className="text-sm text-gray-400 group-hover:text-gray-300 transition-colors duration-300">Your data is encrypted and protected</div>
+                    <div className="text-xs text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300 mt-1">🔒 Military-grade encryption</div>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-4 p-4 bg-gray-800/30 rounded-xl border-2 border-gray-700/60 backdrop-blur-sm hover:bg-gray-800/50 hover:border-purple-500/50 hover:scale-105 hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-300 cursor-pointer group">
+                  <div className="p-3 bg-purple-500/10 rounded-full group-hover:bg-purple-500/20 group-hover:scale-110 transition-all duration-300">
+                    <svg className="w-6 h-6 text-purple-400 group-hover:text-purple-300 transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="font-semibold text-white group-hover:text-purple-100 transition-colors duration-300">Lightning Fast</div>
+                    <div className="text-sm text-gray-400 group-hover:text-gray-300 transition-colors duration-300">Quick setup and instant access</div>
+                    <div className="text-xs text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300 mt-1">⚡ Sub-second load times</div>
+                  </div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-white">10K+</div>
-              <div className="text-sm text-gray-400">Trades Logged</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-white">24/7</div>
-              <div className="text-sm text-gray-400">Analysis</div>
             </div>
           </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section id="features" className="py-20 sm:py-24 px-6 sm:px-10 bg-gray-900 relative">
-        <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-gray-950 to-transparent opacity-50"></div>
+      <section id="features" className="py-24 px-6 sm:px-10 bg-gray-900 relative overflow-hidden">
+        {/* Subtle background pattern */}
+        <div className="absolute inset-0 opacity-5">
+          <div className="absolute top-20 left-10 w-32 h-32 bg-blue-500 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-20 right-10 w-40 h-40 bg-purple-500 rounded-full blur-3xl"></div>
+        </div>
         
-        <div className="relative max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                Powerful Features
-              </span>
-              <br />
-              For Serious Traders
+        <div className="relative max-w-6xl mx-auto">
+          <div className="text-center mb-20">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-800/50 rounded-full border border-gray-700/50 mb-6">
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+              <span className="text-sm text-gray-300">Professional Trading Tools</span>
+            </div>
+            <h2 className="text-4xl sm:text-5xl font-bold mb-6">
+              <span className="text-white">Built for</span>
+              <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent ml-3">Traders</span>
             </h2>
-            <p className="text-gray-400 max-w-2xl mx-auto">
-              Everything you need to analyze your trading performance and improve your strategy
+            <p className="text-gray-400 text-lg max-w-3xl mx-auto leading-relaxed">
+              Comprehensive trading journal platform designed to elevate your trading performance through data-driven insights and professional-grade analytics.
             </p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {/* Feature Card 1 */}
-            <div className="bg-gradient-to-b from-gray-800/50 to-gray-900/50 p-8 rounded-2xl border border-gray-800 hover:border-blue-500/30 transition-all duration-300 group hover:-translate-y-1">
-              <div className="inline-flex items-center justify-center p-3 bg-blue-500/10 rounded-xl mb-6 group-hover:scale-110 transition-transform">
-                <TrendingUp className="text-blue-400" size={28} />
+          {/* Main Features Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-16">
+            {/* Left Column - Primary Feature */}
+            <div className="space-y-8">
+              <div className="bg-gray-800/40 backdrop-blur-sm rounded-3xl p-8 border border-gray-700/50 hover:border-blue-500/30 transition-all duration-500 group">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="p-4 bg-blue-500/10 rounded-2xl group-hover:bg-blue-500/20 transition-colors duration-300">
+                    <TrendingUp className="text-blue-400" size={32} />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-white mb-2">Advanced Trade Analytics</h3>
+                    <p className="text-gray-400">Professional-grade performance tracking</p>
+                  </div>
               </div>
-              <h3 className="text-xl font-semibold mb-3">Advanced Trade Tracking</h3>
-              <p className="text-gray-400 mb-4">
-                Log all your trades with precision. Record entry/exit points, position size, P&L, and add detailed strategy notes.
-              </p>
-              <ul className="space-y-2">
-                {['Multiple asset classes', 'Custom tagging', 'Trade emotions', 'Strategy classification'].map((item) => (
-                  <li key={item} className="flex items-center text-sm text-gray-400">
-                    <CheckCircle className="h-4 w-4 text-blue-500 mr-2" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
+                <p className="text-gray-300 text-lg leading-relaxed mb-6">
+                  Track every aspect of your trading with precision. From entry/exit analysis to risk management metrics, get the insights you need to improve your strategy.
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gray-700/30 rounded-xl p-4">
+                    <div className="text-2xl font-bold text-blue-400 mb-1">95%+</div>
+                    <div className="text-sm text-gray-400">Accuracy Rate</div>
+                  </div>
+                  <div className="bg-gray-700/30 rounded-xl p-4">
+                    <div className="text-2xl font-bold text-green-400 mb-1">Real-time</div>
+                    <div className="text-sm text-gray-400">Data Sync</div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Feature Card 2 */}
-            <div className="bg-gradient-to-b from-gray-800/50 to-gray-900/50 p-8 rounded-2xl border border-gray-800 hover:border-blue-500/30 transition-all duration-300 group hover:-translate-y-1">
-              <div className="inline-flex items-center justify-center p-3 bg-purple-500/10 rounded-xl mb-6 group-hover:scale-110 transition-transform">
-                <BarChart3 className="text-purple-400" size={28} />
+            {/* Right Column - Secondary Features */}
+            <div className="space-y-6">
+              <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50 hover:border-purple-500/30 transition-all duration-300 group">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-3 bg-purple-500/10 rounded-xl group-hover:bg-purple-500/20 transition-colors duration-300">
+                    <BarChart3 className="text-purple-400" size={24} />
+                  </div>
+                  <h4 className="text-xl font-semibold text-white">Performance Insights</h4>
               </div>
-              <h3 className="text-xl font-semibold mb-3">Performance Analytics</h3>
-              <p className="text-gray-400 mb-4">
-                Visualize your performance with interactive charts and statistics. Identify your strengths and weaknesses.
-              </p>
-              <ul className="space-y-2">
-                {['Win rate analysis', 'Profit factor', 'Risk-reward ratios', 'Performance benchmarks'].map((item) => (
-                  <li key={item} className="flex items-center text-sm text-gray-400">
-                    <CheckCircle className="h-4 w-4 text-purple-500 mr-2" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
+                <p className="text-gray-400 leading-relaxed">
+                  Comprehensive analytics including win rate, profit factor, and risk-reward analysis to optimize your trading strategy.
+                </p>
             </div>
 
-            {/* Feature Card 3 */}
-            <div className="bg-gradient-to-b from-gray-800/50 to-gray-900/50 p-8 rounded-2xl border border-gray-800 hover:border-blue-500/30 transition-all duration-300 group hover:-translate-y-1">
-              <div className="inline-flex items-center justify-center p-3 bg-rose-500/10 rounded-xl mb-6 group-hover:scale-110 transition-transform">
-                <Camera className="text-rose-400" size={28} />
+              <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50 hover:border-green-500/30 transition-all duration-300 group">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-3 bg-green-500/10 rounded-xl group-hover:bg-green-500/20 transition-colors duration-300">
+                    <Camera className="text-green-400" size={24} />
+                  </div>
+                  <h4 className="text-xl font-semibold text-white">Visual Documentation</h4>
               </div>
-              <h3 className="text-xl font-semibold mb-3">Visual Journaling</h3>
-              <p className="text-gray-400 mb-4">
-                Attach screenshots of your setups and chart analysis. Keep everything organized in one place.
-              </p>
-              <ul className="space-y-2">
-                {['Drag & drop upload', 'Image annotations', 'Chart markup tools', 'Cloud storage'].map((item) => (
-                  <li key={item} className="flex items-center text-sm text-gray-400">
-                    <CheckCircle className="h-4 w-4 text-rose-500 mr-2" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
+                <p className="text-gray-400 leading-relaxed">
+                  Attach charts, screenshots, and annotations to document your trading setups and decisions for future reference.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Eye-Catching Features */}
+          <div className="max-w-6xl mx-auto">
+            <div className="text-center mb-16">
+              <div className="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-full mb-6 backdrop-blur-sm">
+                <div className="w-3 h-3 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium text-gray-300">Platform Highlights</span>
+              </div>
+              <h3 className="text-3xl sm:text-4xl font-bold text-white mb-4">Why Traders Choose Us</h3>
+              <p className="text-gray-400 text-lg max-w-2xl mx-auto">Experience the difference with our cutting-edge trading platform</p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {/* Market Coverage - Floating Card */}
+              <div className="group relative">
+                <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 via-cyan-500 to-blue-600 rounded-3xl blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
+                <div className="relative bg-gray-900/80 backdrop-blur-xl rounded-3xl p-8 hover:bg-gray-900/90 transition-all duration-500 cursor-pointer">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="p-4 bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-2xl group-hover:scale-110 transition-transform duration-300">
+                      <div className="text-3xl">📈</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">50+</div>
+                      <div className="text-sm text-gray-400">Markets</div>
+                    </div>
+                  </div>
+                  <h4 className="text-2xl font-bold text-white mb-3">Multi-Market Trading</h4>
+                  <p className="text-gray-300 leading-relaxed mb-6">Trade across forex, stocks, crypto, and commodities with unified analytics and tracking.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['Forex', 'Stocks', 'Crypto', 'Commodities'].map((market, index) => (
+                      <span key={market} className="px-3 py-1 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 text-blue-300 text-sm rounded-full backdrop-blur-sm">
+                        {market}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Security - Glowing Card */}
+              <div className="group relative">
+                <div className="absolute -inset-1 bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 rounded-3xl blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
+                <div className="relative bg-gray-900/80 backdrop-blur-xl rounded-3xl p-8 hover:bg-gray-900/90 transition-all duration-500 cursor-pointer">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="p-4 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-2xl group-hover:scale-110 transition-transform duration-300">
+                      <div className="text-3xl">🛡️</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-4xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">256-bit</div>
+                      <div className="text-sm text-gray-400">Encryption</div>
+                    </div>
+                  </div>
+                  <h4 className="text-2xl font-bold text-white mb-3">Military-Grade Security</h4>
+                  <p className="text-gray-300 leading-relaxed mb-6">Your data is protected with bank-level encryption and secure cloud infrastructure.</p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-green-400">
+                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                      <span className="text-sm font-medium">SSL/TLS Protected</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Real-time Sync - Pulsing Card */}
+              <div className="group relative">
+                <div className="absolute -inset-1 bg-gradient-to-r from-purple-500 via-pink-500 to-purple-600 rounded-3xl blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
+                <div className="relative bg-gray-900/80 backdrop-blur-xl rounded-3xl p-8 hover:bg-gray-900/90 transition-all duration-500 cursor-pointer">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="p-4 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-2xl group-hover:scale-110 transition-transform duration-300">
+                      <div className="text-3xl">⚡</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">&lt;1s</div>
+                      <div className="text-sm text-gray-400">Sync Time</div>
+                    </div>
+                  </div>
+                  <h4 className="text-2xl font-bold text-white mb-3">Lightning Fast Sync</h4>
+                  <p className="text-gray-300 leading-relaxed mb-6">Access your journal from any device with instant real-time synchronization.</p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-purple-400">
+                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+                      <span className="text-sm font-medium">Live Updates</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
+
+      {/* Creators Section */}
+      <CreatorsSection />
 
       {/* Testimonial/CTA Section */}
       <section className="py-20 px-6 sm:px-10 bg-gradient-to-br from-gray-900 to-gray-950">
@@ -164,21 +291,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-gray-900 text-gray-400 py-8 text-center border-t border-gray-800">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="mb-4 md:mb-0">
-              &copy; {new Date().getFullYear()} TJournal. All rights reserved.
-            </div>
-            <div className="flex space-x-6">
-              <Link href="/privacy" className="hover:text-blue-400 transition">Privacy</Link>
-              <Link href="/terms" className="hover:text-blue-400 transition">Terms</Link>
-              <Link href="/contact" className="hover:text-blue-400 transition">Contact</Link>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <Footer />
 
     </div>
   );
