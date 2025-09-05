@@ -59,7 +59,7 @@ export default function Sidebar({
       {/* Mobile Toggle Button - Only show on mobile */}
       {isMobile && (
         <button
-          className="lg:hidden fixed top-4 left-4 z-40 flex items-center justify-center w-10 h-10 rounded-full bg-gray-800/70 backdrop-blur-md text-white shadow-lg border border-gray-700/50"
+          className="lg:hidden fixed top-[1.8%] left-4 z-50 flex items-center justify-center w-10 h-10 rounded-full bg-gray-800/70 backdrop-blur-md text-white shadow-lg border border-gray-700/50"
           onClick={() => setIsMobileOpen(true)}
           aria-label="Open menu"
         >
