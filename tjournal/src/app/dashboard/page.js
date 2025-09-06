@@ -15,6 +15,9 @@ import EquityCurve from '../components/EquityCurve';
 import PerInsights from '../components/PerInsights';
 import Footer from '../components/Footer';
 import { Line } from "react-chartjs-2";
+import { useTimezone } from '../contexts/TimezoneContext';
+import { getDateStringInTimezone, createDateTimeFromDeviceTime } from '../utils/timezoneUtils';
+import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 
 import {
   Chart as ChartJS,
@@ -32,6 +35,9 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 
 export default function Dashboard() {
   const router = useRouter();
+  
+  // Get timezone from context
+  const { userTimezone } = useTimezone();
 
   // -----------------------------
   // STATE VARIABLES
@@ -91,6 +97,15 @@ export default function Dashboard() {
   // Metrics modal functionality
   const [isMetricsModalOpen, setIsMetricsModalOpen] = useState(false);
   const [selectedMetric, setSelectedMetric] = useState(null);
+  
+  
+  // Trade addition feedback
+  const [tradeAdditionMessage, setTradeAdditionMessage] = useState(null);
+
+  // Delete confirmation modal state
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [tradeToDelete, setTradeToDelete] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
 
   // -----------------------------
@@ -138,10 +153,11 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!user) return;
+    // Query trades sorted by upload date/time (most recent first)
     const q = query(
       collection(db, "trades1"),
       where("userId", "==", user.uid),
-      orderBy("date", "desc")
+      orderBy("date", "desc") // Most recent trades first
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedTrades = snapshot.docs.map((doc) => ({
@@ -228,33 +244,53 @@ export default function Dashboard() {
     if (!user) return;
 
     try {
+      // Use custom formData from modal if available, otherwise use state
+      const dataToSubmit = e.target?.formData || formData;
+      
+      // Validate required fields
+      if (!dataToSubmit.symbol) {
+        console.error("Symbol is required");
+        return;
+      }
+      
       let imageUrl = null;
-      if (formData.image) {
-        const storageRef = ref(storage, `trades1/${user.uid}/${Date.now()}_${formData.image.name}`);
-        await uploadBytes(storageRef, formData.image);
+      if (dataToSubmit.image) {
+        const storageRef = ref(storage, `trades1/${user.uid}/${Date.now()}_${dataToSubmit.image.name}`);
+        await uploadBytes(storageRef, dataToSubmit.image);
         imageUrl = await getDownloadURL(storageRef);
       }
 
-      await addDoc(collection(db, "trades1"), {
+      const tradeData = {
         userId: user.uid,
-        symbol: formData.symbol,
-        entry: Number(formData.entry),
-        exit: Number(formData.exit),
-        lotSize: Number(formData.lotSize),
-        profit: Number(formData.profit),
-        notes: formData.notes,
+        symbol: dataToSubmit.symbol,
+        entry: Number(dataToSubmit.entry) || 0,
+        exit: Number(dataToSubmit.exit) || 0,
+        lotSize: Number(dataToSubmit.lotSize) || 0,
+        profit: Number(dataToSubmit.profit) || 0,
+        notes: dataToSubmit.notes || "",
         image: imageUrl,
-        accountType: formData.accountType,
-        tradeDirection: formData.tradeDirection,
-        stopLossPips: formData.stopLossPips ? Number(formData.stopLossPips) : null,
-        date: new Date().toISOString(),
-      });
+        accountType: dataToSubmit.accountType || "STANDARD",
+        tradeDirection: dataToSubmit.tradeDirection || "BUY",
+        stopLossPips: dataToSubmit.stopLossPips ? Number(dataToSubmit.stopLossPips) : null,
+        date: dataToSubmit.deviceTimeTimestamp || createDateTimeFromDeviceTime(new Date()), // Use device time with current date
+      };
 
+      console.log("Adding trade:", tradeData);
+      await addDoc(collection(db, "trades1"), tradeData);
+      console.log("Trade added successfully");
+
+      // Show success message
+      setTradeAdditionMessage({ type: 'success', text: 'Trade added successfully!' });
+      setTimeout(() => setTradeAdditionMessage(null), 3000);
+
+      // Clear form data and close modal
       setFormData({ symbol: "", entry: "", exit: "", lotSize: "", profit: "", notes: "", image: null, accountType: "STANDARD", tradeDirection: "BUY", stopLossPips: "" });
       setImagePreview(null);
       setShowModal(false);
+      
     } catch (error) {
       console.error("Error adding trade:", error);
+      alert("Error adding trade. Please try again.");
     }
   };
 
@@ -263,34 +299,54 @@ export default function Dashboard() {
     if (!user || !selectedDate) return;
 
     try {
+      // Use custom formData from modal if available, otherwise use state
+      const dataToSubmit = e.target?.formData || formData;
+      
+      // Validate required fields
+      if (!dataToSubmit.symbol) {
+        console.error("Symbol is required");
+        return;
+      }
+      
       let imageUrl = null;
-      if (formData.image) {
-        const storageRef = ref(storage, `trades1/${user.uid}/${Date.now()}_${formData.image.name}`);
-        await uploadBytes(storageRef, formData.image);
+      if (dataToSubmit.image) {
+        const storageRef = ref(storage, `trades1/${user.uid}/${Date.now()}_${dataToSubmit.image.name}`);
+        await uploadBytes(storageRef, dataToSubmit.image);
         imageUrl = await getDownloadURL(storageRef);
       }
 
-      await addDoc(collection(db, "trades1"), {
+      const tradeData = {
         userId: user.uid,
-        symbol: formData.symbol,
-        entry: Number(formData.entry),
-        exit: Number(formData.exit),
-        lotSize: Number(formData.lotSize),
-        profit: Number(formData.profit),
-        notes: formData.notes,
+        symbol: dataToSubmit.symbol,
+        entry: Number(dataToSubmit.entry) || 0,
+        exit: Number(dataToSubmit.exit) || 0,
+        lotSize: Number(dataToSubmit.lotSize) || 0,
+        profit: Number(dataToSubmit.profit) || 0,
+        notes: dataToSubmit.notes || "",
         image: imageUrl,
-        accountType: formData.accountType,
-        tradeDirection: formData.tradeDirection,
-        stopLossPips: formData.stopLossPips ? Number(formData.stopLossPips) : null,
-        date: selectedDate.toISOString(),
-      });
+        accountType: dataToSubmit.accountType || "STANDARD",
+        tradeDirection: dataToSubmit.tradeDirection || "BUY",
+        stopLossPips: dataToSubmit.stopLossPips ? Number(dataToSubmit.stopLossPips) : null,
+        date: dataToSubmit.deviceTimeTimestamp || createDateTimeFromDeviceTime(selectedDate), // Use device time with selected date from calendar
+      };
 
+      console.log("Adding trade for date:", tradeData);
+      await addDoc(collection(db, "trades1"), tradeData);
+      console.log("Trade added successfully for selected date");
+
+      // Show success message
+      setTradeAdditionMessage({ type: 'success', text: 'Trade added successfully!' });
+      setTimeout(() => setTradeAdditionMessage(null), 3000);
+
+      // Clear form data and close modals
       setFormData({ symbol: "", entry: "", exit: "", lotSize: "", profit: "", notes: "", image: null, accountType: "STANDARD", tradeDirection: "BUY", stopLossPips: "" });
       setImagePreview(null);
       setIsDayOptionsModalOpen(false);
       setShowModal(false);
+      
     } catch (error) {
       console.error("Error adding trade:", error);
+      alert("Error adding trade. Please try again.");
     }
   };
 
@@ -298,16 +354,34 @@ export default function Dashboard() {
   const handleDeleteTrade = async (tradeId) => {
     if (!user) return;
     
+    // Find the trade to delete
+    const trade = filteredTrades.find(t => t.id === tradeId);
+    if (trade) {
+      setTradeToDelete(trade);
+      setDeleteModalOpen(true);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!tradeToDelete || !user) return;
+    
+    setDeleteLoading(true);
     try {
-      // Confirm deletion
-      if (window.confirm("Are you sure you want to delete this trade?")) {
-        await deleteDoc(doc(db, "trades1", tradeId));
-        console.log("Trade deleted successfully");
-      }
+      await deleteDoc(doc(db, "trades1", tradeToDelete.id));
+      console.log("Trade deleted successfully");
+      setDeleteModalOpen(false);
+      setTradeToDelete(null);
     } catch (error) {
       console.error("Error deleting trade:", error);
       alert("Error deleting trade. Please try again.");
+    } finally {
+      setDeleteLoading(false);
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteModalOpen(false);
+    setTradeToDelete(null);
   };
 
   // Edit trade functionality
@@ -625,14 +699,35 @@ export default function Dashboard() {
     };
   }, [sortedTrades, startingBalance, currentBalance]);
 
+  // Calculate date-based trade metrics (User's Preferred Timezone)
+  const dateBasedMetrics = useMemo(() => {
+    const now = new Date();
+    
+    const today = getDateStringInTimezone(now, userTimezone); // YYYY-MM-DD format in user's preferred timezone
+    const yesterday = getDateStringInTimezone(new Date(now.getTime() - 24 * 60 * 60 * 1000), userTimezone);
+    const thisWeek = getDateStringInTimezone(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), userTimezone);
+    
+    const todayTrades = filteredTrades.filter(trade => getDateStringInTimezone(new Date(trade.date), userTimezone) === today);
+    const yesterdayTrades = filteredTrades.filter(trade => getDateStringInTimezone(new Date(trade.date), userTimezone) === yesterday);
+    const thisWeekTrades = filteredTrades.filter(trade => getDateStringInTimezone(new Date(trade.date), userTimezone) >= thisWeek);
+    
+    return {
+      today: todayTrades.length,
+      yesterday: yesterdayTrades.length,
+      thisWeek: thisWeekTrades.length
+    };
+  }, [filteredTrades]);
+
   // Optimize metrics array with useMemo
   const metrics = useMemo(() => [
     { label: "Starting Balance", value: startingBalance, color: "text-white", editable: true },
     { label: "Current Balance", value: currentBalance, color: currentBalance >= 0 ? "text-green-400" : "text-red-500", prefix: "$" },
     { label: "Period Growth", value: periodGrowth, color: periodGrowth >= 0 ? "text-green-400" : "text-red-500", prefix: "$" },
     { label: "Growth %", value: growthPercentage, color: growthPercentage >= 0 ? "text-green-400" : "text-red-500", suffix: "%" },
-    { label: "Trades", value: filteredTrades.length, color: "text-white" },
-  ], [startingBalance, currentBalance, periodGrowth, growthPercentage, filteredTrades.length]);
+    { label: "Total Trades", value: filteredTrades.length, color: "text-white" },
+    { label: "Today", value: dateBasedMetrics.today, color: "text-green-400", subtitle: "Trades Today" },
+    { label: "This Week", value: dateBasedMetrics.thisWeek, color: "text-blue-400", subtitle: "Weekly Trades" },
+  ], [startingBalance, currentBalance, periodGrowth, growthPercentage, filteredTrades.length, dateBasedMetrics]);
 
 
 
@@ -673,6 +768,29 @@ export default function Dashboard() {
                 dailyPnL={dailyPnL}
                 onMenuClick={() => setSidebarOpen(!sidebarOpen)}
               />
+              
+              {/* Success Message */}
+              {tradeAdditionMessage && (
+                <div className={`p-3 rounded-lg border ${
+                  tradeAdditionMessage.type === 'success' 
+                    ? 'bg-green-500/20 border-green-500/30 text-green-400' 
+                    : 'bg-red-500/20 border-red-500/30 text-red-400'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    {tradeAdditionMessage.type === 'success' ? (
+                      <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    ) : (
+                      <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                    <span className="font-medium">{tradeAdditionMessage.text}</span>
+                  </div>
+                </div>
+              )}
+              
               <div className="flex justify-center sm:justify-end">
                 <button
                   onClick={() => setShowModal(true)}
@@ -715,7 +833,10 @@ export default function Dashboard() {
                   }}
                   title={`Click to view details for ${m.label}`}
                 >
-                  <p className="text-gray-400 text-xs sm:text-sm mb-2 sm:mb-3 font-medium leading-tight">{m.label}</p>
+                  <p className="text-gray-400 text-xs sm:text-sm mb-1 font-medium leading-tight">{m.label}</p>
+                  {m.subtitle && (
+                    <p className="text-gray-500 text-xs mb-2 sm:mb-3 leading-tight">{m.subtitle}</p>
+                  )}
                   {m.editable ? (
                     <input
                       type="number"
@@ -797,14 +918,44 @@ export default function Dashboard() {
           </div>
 
           {/* ========================================
-               TRADE HISTORY SECTION - Optimized
+               RECENT TRADES SECTION - Last 5 Trades
           ========================================= */}
           <div id="trade-history-section" className="mb-4 sm:mb-6 lg:mb-8">
-            <TradeHistory 
-              trades={filteredTrades.slice(0, 5)} 
-              onDeleteTrade={handleDeleteTrade}
-              onEditTrade={handleEditTrade}
-            />
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                </svg>
+                Recent Trades (Last 5)
+              </h2>
+              <button
+                onClick={() => router.push('/tradehistory')}
+                className="text-blue-400 hover:text-blue-300 text-sm font-medium flex items-center gap-1 transition-colors duration-200"
+              >
+                View All Trades
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+            
+            
+            {filteredTrades.length > 0 ? (
+              <TradeHistory 
+                trades={filteredTrades.slice(0, 5)} 
+                onDeleteTrade={handleDeleteTrade}
+                onEditTrade={handleEditTrade}
+                isDashboardView={true}
+              />
+            ) : (
+              <div className="text-center py-8 text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto mb-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <p className="text-base font-medium">No recent trades</p>
+                <p className="text-sm text-gray-500">Start by adding your first trade</p>
+              </div>
+            )}
           </div>
 
           {/* ========================================
@@ -1179,6 +1330,19 @@ export default function Dashboard() {
            }
          }
        `}</style>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={deleteModalOpen}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Trade"
+        message="Are you sure you want to delete this trade? This action cannot be undone."
+        itemName={tradeToDelete ? `${tradeToDelete.symbol} - ${tradeToDelete.profit >= 0 ? 'Profit' : 'Loss'} $${Math.abs(tradeToDelete.profit).toFixed(2)}` : ''}
+        itemType="trade"
+        loading={deleteLoading}
+        destructive={true}
+      />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { collection, query, where, onSnapshot, orderBy, doc, deleteDoc } from 'f
 import TradeHistory from "../components/TradeHistory";
 import Sidebar from "../components/Sidebar";
 import Footer from "../components/Footer";
+import DeleteConfirmationModal from "../components/DeleteConfirmationModal";
 import { ArrowLeft } from 'lucide-react';
 
 export default function TradeHistoryPage() {
@@ -14,6 +15,11 @@ export default function TradeHistoryPage() {
   const [user, setUser] = useState(null);
   const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Delete confirmation modal state
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [tradeToDelete, setTradeToDelete] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -71,15 +77,34 @@ export default function TradeHistoryPage() {
   const handleDeleteTrade = async (tradeId) => {
     if (!user) return;
     
+    // Find the trade to delete
+    const trade = trades.find(t => t.id === tradeId);
+    if (trade) {
+      setTradeToDelete(trade);
+      setDeleteModalOpen(true);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!tradeToDelete || !user) return;
+    
+    setDeleteLoading(true);
     try {
-      if (window.confirm("Are you sure you want to delete this trade?")) {
-        await deleteDoc(doc(db, "trades1", tradeId));
-        console.log("Trade deleted successfully");
-      }
+      await deleteDoc(doc(db, "trades1", tradeToDelete.id));
+      console.log("Trade deleted successfully");
+      setDeleteModalOpen(false);
+      setTradeToDelete(null);
     } catch (error) {
       console.error("Error deleting trade:", error);
       alert("Error deleting trade. Please try again.");
+    } finally {
+      setDeleteLoading(false);
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteModalOpen(false);
+    setTradeToDelete(null);
   };
 
   if (loading) {
@@ -162,6 +187,19 @@ export default function TradeHistoryPage() {
           animation-delay: 4s;
         }
       `}</style>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={deleteModalOpen}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Trade"
+        message="Are you sure you want to delete this trade? This action cannot be undone."
+        itemName={tradeToDelete ? `${tradeToDelete.symbol} - ${tradeToDelete.profit >= 0 ? 'Profit' : 'Loss'} $${Math.abs(tradeToDelete.profit).toFixed(2)}` : ''}
+        itemType="trade"
+        loading={deleteLoading}
+        destructive={true}
+      />
     </div>
   );
 }

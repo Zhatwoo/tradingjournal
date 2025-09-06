@@ -13,19 +13,62 @@ import {
   Percent,
   Activity
 } from 'lucide-react';
+import { useTimezone } from '../contexts/TimezoneContext';
+import { formatDateInTimezone, getDateStringInTimezone, getTimezoneDisplayName } from '../utils/timezoneUtils';
+import DeleteConfirmationModal from './DeleteConfirmationModal';
 
-export default function TradeHistory({ trades, onDeleteTrade }) {
+export default function TradeHistory({ trades, onDeleteTrade, isDashboardView = false }) {
   const [filterSymbol, setFilterSymbol] = useState('');
   const [filterProfit, setFilterProfit] = useState('all'); // all, profit, loss
   const [filterStrategy, setFilterStrategy] = useState('all'); // all, or specific strategy
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
-  const [sortBy, setSortBy] = useState('date'); // date, profit, symbol
+  const [timeFilter, setTimeFilter] = useState('all'); // all, today, yesterday, thisWeek
+  const [sortBy, setSortBy] = useState('datetime'); // date, profit, symbol, time, uploadTime, datetime
   const [sortOrder, setSortOrder] = useState('desc'); // asc, desc
   const [currentPage, setCurrentPage] = useState(1);
   const [tradesPerPage] = useState(10); // Number of trades per page
-  const [showMetrics, setShowMetrics] = useState(true); // Toggle metrics section
+  const [showMetrics, setShowMetrics] = useState(false); // Toggle metrics section
   const [lastUpdate, setLastUpdate] = useState(null); // Track last update time
   const [isClient, setIsClient] = useState(false);
+  
+  // Delete confirmation modal state
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [tradeToDelete, setTradeToDelete] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  
+  // Get timezone from context
+  const { userTimezone } = useTimezone();
+
+  // Helper function to get date string in user's preferred timezone
+  const getUserDateString = (date) => {
+    return getDateStringInTimezone(date, userTimezone);
+  };
+
+  // Delete confirmation functions
+  const handleDeleteClick = (trade) => {
+    setTradeToDelete(trade);
+    setDeleteModalOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!tradeToDelete || !onDeleteTrade) return;
+    
+    setDeleteLoading(true);
+    try {
+      await onDeleteTrade(tradeToDelete.id);
+      setDeleteModalOpen(false);
+      setTradeToDelete(null);
+    } catch (error) {
+      console.error('Error deleting trade:', error);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteModalOpen(false);
+    setTradeToDelete(null);
+  };
 
   // Set client-side flag to prevent hydration mismatch
   useEffect(() => {
@@ -59,23 +102,60 @@ export default function TradeHistory({ trades, onDeleteTrade }) {
         (filterProfit === 'loss' && trade.profit < 0);
       const matchesStrategy = filterStrategy === 'all' || trade.strategy === filterStrategy;
       
-      // Date range filtering
+      // Date range filtering (User's Preferred Timezone)
       let matchesDate = true;
       if (dateRange.start || dateRange.end) {
-        const tradeDate = new Date(trade.date).toISOString().split('T')[0];
+        const tradeDate = getUserDateString(new Date(trade.date)); // YYYY-MM-DD format in user's preferred timezone
         matchesDate = (!dateRange.start || tradeDate >= dateRange.start) && 
                      (!dateRange.end || tradeDate <= dateRange.end);
       }
       
-      return matchesSymbol && matchesProfit && matchesStrategy && matchesDate;
+      // Time-based filtering (User's Preferred Timezone)
+      let matchesTime = true;
+      if (timeFilter !== 'all') {
+        const now = new Date();
+        const today = getUserDateString(now); // YYYY-MM-DD format in user's preferred timezone
+        const yesterday = getUserDateString(new Date(now.getTime() - 24 * 60 * 60 * 1000));
+        const thisWeek = getUserDateString(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000));
+        const tradeDate = getUserDateString(new Date(trade.date));
+        
+        switch (timeFilter) {
+          case 'today':
+            matchesTime = tradeDate === today;
+            break;
+          case 'yesterday':
+            matchesTime = tradeDate === yesterday;
+            break;
+          case 'thisWeek':
+            matchesTime = tradeDate >= thisWeek;
+            break;
+          default:
+            matchesTime = true;
+        }
+      }
+      
+      return matchesSymbol && matchesProfit && matchesStrategy && matchesDate && matchesTime;
     })
     .sort((a, b) => {
       let aValue, bValue;
       
       switch (sortBy) {
         case 'date':
-          aValue = new Date(a.date);
-          bValue = new Date(b.date);
+          aValue = getUserDateString(new Date(a.date));
+          bValue = getUserDateString(new Date(b.date));
+          break;
+        case 'time':
+        case 'uploadTime':
+          // Sort by full timestamp (most recent first by default)
+          // Uses timezone-aware timestamps for accurate sorting
+          aValue = new Date(a.date).getTime();
+          bValue = new Date(b.date).getTime();
+          break;
+        case 'datetime':
+          // Sort by full timestamp including time (most recent first by default)
+          // Uses timezone-aware timestamps for accurate sorting
+          aValue = new Date(a.date).getTime();
+          bValue = new Date(b.date).getTime();
           break;
         case 'profit':
           aValue = a.profit;
@@ -86,8 +166,10 @@ export default function TradeHistory({ trades, onDeleteTrade }) {
           bValue = b.symbol.toLowerCase();
           break;
         default:
-          aValue = new Date(a.date);
-          bValue = new Date(b.date);
+          // Default to time-based sorting (most recent first)
+          // Uses timezone-aware timestamps for accurate sorting
+          aValue = new Date(a.date).getTime();
+          bValue = new Date(b.date).getTime();
       }
 
       if (sortOrder === 'asc') {
@@ -102,7 +184,7 @@ export default function TradeHistory({ trades, onDeleteTrade }) {
   const totalPages = Math.ceil(totalTrades / tradesPerPage);
   const startIndex = (currentPage - 1) * tradesPerPage;
   const endIndex = startIndex + tradesPerPage;
-  const currentTrades = filteredAndSortedTrades.slice(startIndex, endIndex);
+  const currentTrades = isDashboardView ? filteredAndSortedTrades : filteredAndSortedTrades.slice(startIndex, endIndex);
 
   // Reset to first page when filters change
   const handleFilterChange = (newFilter) => {
@@ -153,7 +235,7 @@ export default function TradeHistory({ trades, onDeleteTrade }) {
     let peak = 0;
     let maxDD = 0;
     filtered
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) // Use timezone-aware timestamps
       .forEach(t => {
         equity += t.profit;
         if (equity > peak) peak = equity;
@@ -168,7 +250,7 @@ export default function TradeHistory({ trades, onDeleteTrade }) {
     let currentLosses = 0;
     
     filtered
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) // Use timezone-aware timestamps
       .forEach(t => {
         if (t.profit > 0) {
           currentWins++;
@@ -478,8 +560,9 @@ export default function TradeHistory({ trades, onDeleteTrade }) {
         </div>
       )}
 
-      {/* Enhanced Filters and Controls */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      {/* Enhanced Filters and Controls - Hidden in dashboard view */}
+      {!isDashboardView && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
         {/* Symbol Filter */}
         <div>
           <label className="block text-xs sm:text-sm font-medium text-gray-400 mb-1 sm:mb-2">Symbol</label>
@@ -507,6 +590,21 @@ export default function TradeHistory({ trades, onDeleteTrade }) {
           </select>
         </div>
 
+        {/* Time Filter */}
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-400 mb-1 sm:mb-2">Time Period</label>
+          <select
+            value={timeFilter}
+            onChange={(e) => handleFilterChange(() => setTimeFilter(e.target.value))}
+            className="w-full px-2 sm:px-3 py-1 sm:py-2 bg-gray-700/70 text-white rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
+          >
+            <option value="all">All Time</option>
+            <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="thisWeek">This Week</option>
+          </select>
+        </div>
+
         {/* Date Range */}
         <div>
           <label className="block text-xs sm:text-sm font-medium text-gray-400 mb-1 sm:mb-2">From Date</label>
@@ -528,8 +626,10 @@ export default function TradeHistory({ trades, onDeleteTrade }) {
           />
         </div>
       </div>
+      )}
 
-      {/* Sort Controls */}
+      {/* Sort Controls - Hidden in dashboard view */}
+      {!isDashboardView && (
       <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-4 sm:mb-6">
         {/* Profit Filter */}
         <div className="sm:w-32">
@@ -553,7 +653,9 @@ export default function TradeHistory({ trades, onDeleteTrade }) {
             onChange={(e) => handleFilterChange(() => setSortBy(e.target.value))}
             className="w-full px-2 sm:px-3 py-1 sm:py-2 bg-gray-700/70 text-white rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
           >
-            <option value="date">Date</option>
+            <option value="datetime">Date & Time</option>
+            <option value="time">Upload Time</option>
+            <option value="date">Date Only</option>
             <option value="profit">Profit/Loss</option>
             <option value="symbol">Symbol</option>
           </select>
@@ -567,11 +669,12 @@ export default function TradeHistory({ trades, onDeleteTrade }) {
             onChange={(e) => handleFilterChange(() => setSortOrder(e.target.value))}
             className="w-full px-2 sm:px-3 py-1 sm:py-2 bg-gray-700/70 text-white rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
           >
-            <option value="desc">Newest First</option>
+            <option value="desc">Most Recent First</option>
             <option value="asc">Oldest First</option>
           </select>
         </div>
       </div>
+      )}
 
       {/* Trades List */}
       {currentTrades.length === 0 ? (
@@ -597,10 +700,12 @@ export default function TradeHistory({ trades, onDeleteTrade }) {
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
                     <span className="text-base sm:text-lg font-bold text-white">{trade.symbol}</span>
                     <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs sm:text-sm font-medium w-fit">
-                      {trade.lotSize || "0.01"}
+                      {trade.lotSize > 0 ? trade.lotSize : "0.01"}
                     </span>
                     <span className="text-xs sm:text-sm text-gray-400">
-                      {new Date(trade.date).toLocaleDateString()}
+                      {new Date(trade.date).toLocaleDateString(undefined, {
+                        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                      })}
                     </span>
                   </div>
                   
@@ -608,11 +713,24 @@ export default function TradeHistory({ trades, onDeleteTrade }) {
                   <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm">
                     <div>
                       <span className="text-gray-400">Entry: </span>
-                      <span className="text-white font-medium">${trade.entry}</span>
+                      <span className="text-white font-medium">${trade.entry || "N/A"}</span>
                     </div>
                     <div>
                       <span className="text-gray-400">Exit: </span>
-                      <span className="text-white font-medium">${trade.exit}</span>
+                      <span className="text-white font-medium">${trade.exit || "N/A"}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Time: </span>
+                      <span className="text-white font-medium">
+                        {formatDateInTimezone(trade.date, userTimezone, { 
+                          hour: '2-digit', 
+                          minute: '2-digit',
+                          hour12: true
+                        })}
+                      </span>
+                      <span className="text-xs text-gray-500 ml-1">
+                        ({getTimezoneDisplayName(userTimezone).split('(')[1]?.replace(')', '') || 'Local'})
+                      </span>
                     </div>
                     {trade.notes && (
                       <div className="flex-1">
@@ -635,7 +753,7 @@ export default function TradeHistory({ trades, onDeleteTrade }) {
                   </div>
                   
                   <button
-                    onClick={() => onDeleteTrade(trade.id)}
+                    onClick={() => handleDeleteClick(trade)}
                     className="text-red-500 hover:text-red-400 hover:bg-red-500/10 p-1.5 sm:p-2 rounded-lg transition-all duration-200"
                     title="Delete trade"
                   >
@@ -650,8 +768,8 @@ export default function TradeHistory({ trades, onDeleteTrade }) {
         </div>
       )}
 
-      {/* Pagination Controls */}
-      {totalPages > 1 && (
+      {/* Pagination Controls - Hidden in dashboard view */}
+      {!isDashboardView && totalPages > 1 && (
         <div className="mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-gray-600/30">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-4">
             {/* Page Info */}
@@ -723,6 +841,19 @@ export default function TradeHistory({ trades, onDeleteTrade }) {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={deleteModalOpen}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Trade"
+        message="Are you sure you want to delete this trade? This action cannot be undone."
+        itemName={tradeToDelete ? `${tradeToDelete.symbol} - ${tradeToDelete.profit >= 0 ? 'Profit' : 'Loss'} $${Math.abs(tradeToDelete.profit).toFixed(2)}` : ''}
+        itemType="trade"
+        loading={deleteLoading}
+        destructive={true}
+      />
     </div>
   );
 }

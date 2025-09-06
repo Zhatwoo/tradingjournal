@@ -39,7 +39,7 @@ export default function Settings() {
     },
     display: {
       currency: 'USD',
-      timezone: 'UTC',
+      timezone: 'auto', // 'auto' for device timezone, or specific timezone
       dateFormat: 'MM/DD/YYYY',
       decimalPlaces: 5
     }
@@ -442,11 +442,72 @@ export default function Settings() {
                     }))}
                     className="w-full px-3 py-2 bg-gray-700/70 text-white rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
-                    <option value="UTC">UTC</option>
-                    <option value="EST">EST (UTC-5)</option>
-                    <option value="PST">PST (UTC-8)</option>
-                    <option value="GMT">GMT (UTC+0)</option>
+                    <option value="auto">Auto (Device Timezone)</option>
+                    <optgroup label="Americas">
+                      <option value="America/New_York">Eastern Time (EST/EDT)</option>
+                      <option value="America/Chicago">Central Time (CST/CDT)</option>
+                      <option value="America/Denver">Mountain Time (MST/MDT)</option>
+                      <option value="America/Los_Angeles">Pacific Time (PST/PDT)</option>
+                      <option value="America/Toronto">Toronto (EST/EDT)</option>
+                      <option value="America/Vancouver">Vancouver (PST/PDT)</option>
+                      <option value="America/Sao_Paulo">São Paulo (BRT)</option>
+                    </optgroup>
+                    <optgroup label="Europe">
+                      <option value="Europe/London">London (GMT/BST)</option>
+                      <option value="Europe/Paris">Paris (CET/CEST)</option>
+                      <option value="Europe/Berlin">Berlin (CET/CEST)</option>
+                      <option value="Europe/Rome">Rome (CET/CEST)</option>
+                      <option value="Europe/Madrid">Madrid (CET/CEST)</option>
+                      <option value="Europe/Moscow">Moscow (MSK)</option>
+                    </optgroup>
+                    <optgroup label="Asia">
+                      <option value="Asia/Tokyo">Tokyo (JST)</option>
+                      <option value="Asia/Shanghai">Shanghai (CST)</option>
+                      <option value="Asia/Hong_Kong">Hong Kong (HKT)</option>
+                      <option value="Asia/Singapore">Singapore (SGT)</option>
+                      <option value="Asia/Kolkata">Mumbai (IST)</option>
+                      <option value="Asia/Dubai">Dubai (GST)</option>
+                      <option value="Asia/Seoul">Seoul (KST)</option>
+                    </optgroup>
+                    <optgroup label="Oceania">
+                      <option value="Australia/Sydney">Sydney (AEST/AEDT)</option>
+                      <option value="Australia/Melbourne">Melbourne (AEST/AEDT)</option>
+                      <option value="Pacific/Auckland">Auckland (NZST/NZDT)</option>
+                    </optgroup>
+                    <optgroup label="UTC Offsets">
+                      <option value="UTC">UTC (GMT+0)</option>
+                      <option value="UTC+1">UTC+1</option>
+                      <option value="UTC+2">UTC+2</option>
+                      <option value="UTC+3">UTC+3</option>
+                      <option value="UTC+4">UTC+4</option>
+                      <option value="UTC+5">UTC+5</option>
+                      <option value="UTC+6">UTC+6</option>
+                      <option value="UTC+7">UTC+7</option>
+                      <option value="UTC+8">UTC+8</option>
+                      <option value="UTC+9">UTC+9</option>
+                      <option value="UTC+10">UTC+10</option>
+                      <option value="UTC+11">UTC+11</option>
+                      <option value="UTC+12">UTC+12</option>
+                      <option value="UTC-1">UTC-1</option>
+                      <option value="UTC-2">UTC-2</option>
+                      <option value="UTC-3">UTC-3</option>
+                      <option value="UTC-4">UTC-4</option>
+                      <option value="UTC-5">UTC-5</option>
+                      <option value="UTC-6">UTC-6</option>
+                      <option value="UTC-7">UTC-7</option>
+                      <option value="UTC-8">UTC-8</option>
+                      <option value="UTC-9">UTC-9</option>
+                      <option value="UTC-10">UTC-10</option>
+                      <option value="UTC-11">UTC-11</option>
+                      <option value="UTC-12">UTC-12</option>
+                    </optgroup>
                   </select>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Current device timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Note: UTC offset options (UTC+8, UTC-5, etc.) are supported for simple timezone adjustments.
+                  </p>
                 </div>
 
                 <div>
