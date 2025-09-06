@@ -24,12 +24,21 @@ export default function TradeHistory({ trades, onDeleteTrade }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [tradesPerPage] = useState(10); // Number of trades per page
   const [showMetrics, setShowMetrics] = useState(true); // Toggle metrics section
-  const [lastUpdate, setLastUpdate] = useState(new Date()); // Track last update time
+  const [lastUpdate, setLastUpdate] = useState(null); // Track last update time
+  const [isClient, setIsClient] = useState(false);
+
+  // Set client-side flag to prevent hydration mismatch
+  useEffect(() => {
+    setIsClient(true);
+    setLastUpdate(new Date());
+  }, []);
 
   // Update last update time when trades change
   useEffect(() => {
-    setLastUpdate(new Date());
-  }, [trades]);
+    if (isClient) {
+      setLastUpdate(new Date());
+    }
+  }, [trades, isClient]);
 
   // Helper functions
   const formatCurrency = (n) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -338,7 +347,7 @@ export default function TradeHistory({ trades, onDeleteTrade }) {
               <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
             </div>
             <div className="text-xs text-gray-400">
-              Last updated: {lastUpdate.toLocaleTimeString()}
+              {isClient && lastUpdate ? `Last updated: ${lastUpdate.toLocaleTimeString()}` : 'Last updated: --:--:--'}
             </div>
           </h3>
           
