@@ -28,12 +28,10 @@ export default function TradingCalendar({
   });
 
   const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
-  const firstDayOfMonth = new Date(selectedYear, selectedMonth, 1).getDay(); // 0=Sun ... 6=Sat
-  const calendarDays = Array.from({ length: firstDayOfMonth }, () => null)
-    .concat(Array.from({ length: daysInMonth }, (_, i) => i + 1));
+  // Create calendar days in ascending order (1 to daysInMonth)
+  const calendarDays = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
   const availableYears = Array.from(new Set(filteredTrades.map(t => new Date(t.date).getFullYear()))).sort((a, b) => b - a);
-  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
   return (
     <div className="bg-white/5 backdrop-blur-lg p-3 sm:p-4 lg:p-6 rounded-xl sm:rounded-2xl shadow-2xl border border-white/10">
@@ -89,20 +87,9 @@ export default function TradingCalendar({
 
       {/* Calendar Grid */}
       <div className="bg-white/5 rounded-lg sm:rounded-xl p-2 sm:p-3 lg:p-4 border border-white/10">
-        {/* Days of week header */}
-        <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 sm:mb-3">
-          {dayNames.map(day => (
-            <div key={day} className="text-center text-xs sm:text-sm font-semibold text-gray-300 py-2 sm:py-3 px-1 sm:px-2">
-              <span className="hidden sm:inline">{day}</span>
-              <span className="sm:hidden">{day.charAt(0)}</span>
-            </div>
-          ))}
-        </div>
-
         {/* Calendar Days */}
-        <div className="grid grid-cols-7 gap-1 sm:gap-2">
+        <div className="grid grid-cols-5 sm:grid-cols-6 lg:grid-cols-7 gap-1 sm:gap-2">
           {calendarDays.map((day, idx) => {
-            if (!day) return <div key={idx} className="h-12 sm:h-16 lg:h-20"></div>; // empty slot
 
             const dayTrades = tradesInMonth.filter(trade => new Date(trade.date).getDate() === day);
             const dayPnL = dayTrades.reduce((sum, t) => sum + (t.profit || 0), 0);

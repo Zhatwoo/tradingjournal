@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback, lazy, Suspense } from "react";
 import { auth, db, storage } from "../lib/firebase";
 import { collection, addDoc, query, where, onSnapshot, orderBy, doc, deleteDoc, updateDoc, setDoc, getDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -9,7 +9,8 @@ import DashboardHeader from "../components/DashboardHeader";
 import Sidebar from "../components/Sidebar";
 import AddTradeModal from '../components/AddTrade';
 import TradeHistory from '../components/TradeHistory';
-import TradingCalendar from '../components/TradingCalendar';
+// Lazy load the TradingCalendar component for better performance
+const TradingCalendar = lazy(() => import('../components/TradingCalendar'));
 import EquityCurve from '../components/EquityCurve';
 import PerInsights from '../components/PerInsights';
 import Footer from '../components/Footer';
@@ -74,13 +75,14 @@ export default function Dashboard() {
   const [selectedDuration, setSelectedDuration] = useState('30D'); // Default to last 30 days
 
   // -----------------------------
-  // Modal for daily trades
+  // Modal for daily trades - with persistence
   // -----------------------------
   const [selectedDayTrades, setSelectedDayTrades] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDay, setSelectedDay] = useState(null);
   const [isDayOptionsModalOpen, setIsDayOptionsModalOpen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(null); // Will be set on client
+  const [isClient, setIsClient] = useState(false);
 
   // Edit trade functionality
   const [editingTrade, setEditingTrade] = useState(null);
@@ -161,6 +163,21 @@ export default function Dashboard() {
       return () => clearTimeout(timeoutId);
     }
   }, [startingBalance, metricsStartDate, metricsEndDate, selectedDuration, user]);
+
+  // Initialize client-side state and persist selected date
+  useEffect(() => {
+    setIsClient(true);
+    // Initialize with today's date for better UX
+    const saved = localStorage.getItem('trading-calendar-selected-date');
+    setSelectedDate(saved ? new Date(saved) : new Date());
+  }, []);
+
+  // Persist selected date to localStorage
+  useEffect(() => {
+    if (selectedDate && isClient) {
+      localStorage.setItem('trading-calendar-selected-date', selectedDate.toISOString());
+    }
+  }, [selectedDate, isClient]);
 
   // Auto-adjust date range when trades are loaded (only if no custom range is set)
   useEffect(() => {
@@ -397,11 +414,41 @@ export default function Dashboard() {
     }
   };
 
-  // Show detailed metrics modal
-  const showMetricsDetails = (metric) => {
+  // Optimize handlers with useCallback
+  const showMetricsDetails = useCallback((metric) => {
     setSelectedMetric(metric);
     setIsMetricsModalOpen(true);
-  };
+  }, []);
+
+  // Optimize calendar handlers with better state management
+  const handleCalendarDateSelect = useCallback((date) => {
+    setSelectedDate(date);
+  }, []);
+
+  const handleCalendarDayTrades = useCallback((trades) => {
+    setSelectedDayTrades(trades);
+  }, []);
+
+  const handleCalendarDaySelect = useCallback((day) => {
+    setSelectedDay(day);
+  }, []);
+
+  const handleCalendarModalOpen = useCallback((isOpen) => {
+    setIsModalOpen(isOpen);
+    // Clear selected date when closing modal to prevent stale state
+    if (!isOpen) {
+      setSelectedDate(null);
+    }
+  }, []);
+
+  const handleCalendarDayOptionsModal = useCallback((isOpen) => {
+    setIsDayOptionsModalOpen(isOpen);
+    // Clear selected day trades when closing modal
+    if (!isOpen) {
+      setSelectedDayTrades([]);
+      setSelectedDay(null);
+    }
+  }, []);
 
   // Smart date range detection based on trade data
   const getSmartDateRange = () => {
@@ -498,60 +545,94 @@ export default function Dashboard() {
   // -----------------------------
   // CALCULATED VARIABLES
   // -----------------------------
-  // Filter trades based on selected date range
-  const filteredTrades = recentTrades.filter(trade => {
-    const tradeDate = new Date(trade.date);
-    const startDate = new Date(metricsStartDate);
-    const endDate = new Date(metricsEndDate);
-    return tradeDate >= startDate && tradeDate <= endDate;
-  });
+  // Optimize trade filtering with useMemo to prevent unnecessary recalculations
+  const filteredTrades = useMemo(() => {
+    return recentTrades.filter(trade => {
+      const tradeDate = new Date(trade.date);
+      const startDate = new Date(metricsStartDate);
+      const endDate = new Date(metricsEndDate);
+      return tradeDate >= startDate && tradeDate <= endDate;
+    });
+  }, [recentTrades, metricsStartDate, metricsEndDate]);
   
-  const dailyPnL = filteredTrades.reduce((acc, trade) => acc + (trade.profit || 0), 0);
-  const currentBalance = startingBalance + dailyPnL;
+  // Optimize calculations with useMemo
+  const dailyPnL = useMemo(() => 
+    filteredTrades.reduce((acc, trade) => acc + (trade.profit || 0), 0), 
+    [filteredTrades]
+  );
+  
+  const currentBalance = useMemo(() => 
+    startingBalance + dailyPnL, 
+    [startingBalance, dailyPnL]
+  );
   
   // Calculate equity curve starting from zero to show growth
   // Sort trades by date (oldest first) for proper equity curve calculation
-  const sortedTrades = [...filteredTrades].sort((a, b) => new Date(a.date) - new Date(b.date));
+  const sortedTrades = useMemo(() => 
+    [...filteredTrades].sort((a, b) => new Date(a.date) - new Date(b.date)), 
+    [filteredTrades]
+  );
   
-  // Enhanced growth metrics
-  const totalGrowth = currentBalance - startingBalance;
-  const growthPercentage = startingBalance > 0 ? (totalGrowth / startingBalance) * 100 : 0;
+  // Enhanced growth metrics - optimized with useMemo
+  const totalGrowth = useMemo(() => 
+    currentBalance - startingBalance, 
+    [currentBalance, startingBalance]
+  );
+  
+  const growthPercentage = useMemo(() => 
+    startingBalance > 0 ? (totalGrowth / startingBalance) * 100 : 0, 
+    [totalGrowth, startingBalance]
+  );
+  
   const periodGrowth = totalGrowth; // Growth since last reset
   
-  // Calculate best and worst days (using filtered trades)
-  const dailyPnLs = filteredTrades.reduce((acc, trade) => {
-    const date = new Date(trade.date).toLocaleDateString();
-    if (!acc[date]) acc[date] = 0;
-    acc[date] += trade.profit || 0;
-    return acc;
-  }, {});
+  // Calculate best and worst days (using filtered trades) - optimized
+  const { bestDay, worstDay } = useMemo(() => {
+    const dailyPnLs = filteredTrades.reduce((acc, trade) => {
+      const date = new Date(trade.date).toLocaleDateString();
+      if (!acc[date]) acc[date] = 0;
+      acc[date] += trade.profit || 0;
+      return acc;
+    }, {});
+    
+    const best = Object.entries(dailyPnLs).reduce((best, [date, pnl]) => 
+      pnl > best.pnl ? { date, pnl } : best, { date: '', pnl: -Infinity }
+    );
+    
+    const worst = Object.entries(dailyPnLs).reduce((worst, [date, pnl]) => 
+      pnl < worst.pnl ? { date, pnl } : worst, { date: '', pnl: Infinity }
+    );
+    
+    return { bestDay: best, worstDay: worst };
+  }, [filteredTrades]);
   
-  const bestDay = Object.entries(dailyPnLs).reduce((best, [date, pnl]) => 
-    pnl > best.pnl ? { date, pnl } : best, { date: '', pnl: -Infinity }
-  );
-  
-  const worstDay = Object.entries(dailyPnLs).reduce((worst, [date, pnl]) => 
-    pnl < worst.pnl ? { date, pnl } : worst, { date: '', pnl: Infinity }
-  );
-  
-  // Calculate drawdown (maximum loss from peak)
-  const runningBalances = sortedTrades.reduce((acc, t, i) => {
-    const previousBalance = acc[i - 1] || startingBalance;
-    const newBalance = previousBalance + (t.profit || 0);
-    return [...acc, newBalance];
-  }, []);
-  
-  const peakBalance = Math.max(...runningBalances, startingBalance);
-  const currentDrawdown = peakBalance - currentBalance;
-  const maxDrawdown = Math.max(...runningBalances.map(balance => peakBalance - balance), 0);
+  // Calculate drawdown (maximum loss from peak) - optimized
+  const { peakBalance, currentDrawdown, maxDrawdown } = useMemo(() => {
+    const runningBalances = sortedTrades.reduce((acc, t, i) => {
+      const previousBalance = acc[i - 1] || startingBalance;
+      const newBalance = previousBalance + (t.profit || 0);
+      return [...acc, newBalance];
+    }, []);
+    
+    const peak = Math.max(...runningBalances, startingBalance);
+    const current = peak - currentBalance;
+    const max = Math.max(...runningBalances.map(balance => peak - balance), 0);
+    
+    return { 
+      peakBalance: peak, 
+      currentDrawdown: current, 
+      maxDrawdown: max 
+    };
+  }, [sortedTrades, startingBalance, currentBalance]);
 
-  const metrics = [
+  // Optimize metrics array with useMemo
+  const metrics = useMemo(() => [
     { label: "Starting Balance", value: startingBalance, color: "text-white", editable: true },
     { label: "Current Balance", value: currentBalance, color: currentBalance >= 0 ? "text-green-400" : "text-red-500", prefix: "$" },
     { label: "Period Growth", value: periodGrowth, color: periodGrowth >= 0 ? "text-green-400" : "text-red-500", prefix: "$" },
     { label: "Growth %", value: growthPercentage, color: growthPercentage >= 0 ? "text-green-400" : "text-red-500", suffix: "%" },
     { label: "Trades", value: filteredTrades.length, color: "text-white" },
-  ];
+  ], [startingBalance, currentBalance, periodGrowth, growthPercentage, filteredTrades.length]);
 
 
 
@@ -691,20 +772,32 @@ export default function Dashboard() {
           ========================================= */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6 lg:gap-8 mb-4 sm:mb-6 lg:mb-8">
             
-            {/* Trading Calendar */}
-            <TradingCalendar
-              filteredTrades={filteredTrades}
-              selectedDate={selectedDate}
-              setSelectedDate={setSelectedDate}
-              setSelectedDayTrades={setSelectedDayTrades}
-              setSelectedDay={setSelectedDay}
-              setIsModalOpen={setIsModalOpen}
-              setIsDayOptionsModalOpen={setIsDayOptionsModalOpen}
-            />
+            {/* Trading Calendar - Optimized with lazy loading and memoized handlers */}
+            <Suspense fallback={
+              <div className="bg-white/5 backdrop-blur-lg p-3 sm:p-4 lg:p-6 rounded-xl sm:rounded-2xl shadow-2xl border border-white/10 animate-pulse">
+                <div className="h-8 bg-white/10 rounded mb-4"></div>
+                <div className="h-6 bg-white/10 rounded mb-4"></div>
+                <div className="grid grid-cols-7 gap-2">
+                  {Array.from({ length: 35 }).map((_, i) => (
+                    <div key={i} className="h-12 sm:h-16 lg:h-20 bg-white/10 rounded"></div>
+                  ))}
+                </div>
+              </div>
+            }>
+              <TradingCalendar
+                filteredTrades={filteredTrades}
+                selectedDate={selectedDate}
+                setSelectedDate={handleCalendarDateSelect}
+                setSelectedDayTrades={handleCalendarDayTrades}
+                setSelectedDay={handleCalendarDaySelect}
+                setIsModalOpen={handleCalendarModalOpen}
+                setIsDayOptionsModalOpen={handleCalendarDayOptionsModal}
+              />
+            </Suspense>
           </div>
 
           {/* ========================================
-               TRADE HISTORY SECTION
+               TRADE HISTORY SECTION - Optimized
           ========================================= */}
           <div id="trade-history-section" className="mb-4 sm:mb-6 lg:mb-8">
             <TradeHistory 
