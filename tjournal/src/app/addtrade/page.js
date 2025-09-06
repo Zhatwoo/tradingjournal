@@ -7,6 +7,7 @@ import { collection, addDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Sidebar from '../components/Sidebar';
 import AddTradeModal from '../components/AddTrade';
+import Footer from '../components/Footer';
 import { ArrowLeft } from 'lucide-react';
 import { calculateTradeProfitLoss } from '../utils/forexCalculations';
 
@@ -208,6 +209,11 @@ export default function AddTradePage() {
           />
         </div>
       </div>
+
+      <Footer 
+        sidebarOpen={sidebarOpen} 
+        isMobile={isMobile} 
+      />
 
       <style jsx global>{`
         @keyframes blob {

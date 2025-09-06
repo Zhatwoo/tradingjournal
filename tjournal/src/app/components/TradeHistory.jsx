@@ -1,14 +1,45 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { 
+  TrendingUp, 
+  TrendingDown, 
+  Target, 
+  Scale as RiskIcon, 
+  BarChart3, 
+  Calendar, 
+  Filter,
+  DollarSign,
+  Percent,
+  Activity
+} from 'lucide-react';
 
 export default function TradeHistory({ trades, onDeleteTrade }) {
   const [filterSymbol, setFilterSymbol] = useState('');
   const [filterProfit, setFilterProfit] = useState('all'); // all, profit, loss
+  const [filterStrategy, setFilterStrategy] = useState('all'); // all, or specific strategy
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [sortBy, setSortBy] = useState('date'); // date, profit, symbol
   const [sortOrder, setSortOrder] = useState('desc'); // asc, desc
   const [currentPage, setCurrentPage] = useState(1);
   const [tradesPerPage] = useState(10); // Number of trades per page
+  const [showMetrics, setShowMetrics] = useState(true); // Toggle metrics section
+  const [lastUpdate, setLastUpdate] = useState(new Date()); // Track last update time
+
+  // Update last update time when trades change
+  useEffect(() => {
+    setLastUpdate(new Date());
+  }, [trades]);
+
+  // Helper functions
+  const formatCurrency = (n) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+  const pct = (n) => `${(n * 100).toFixed(1)}%`;
+
+  // Get unique strategies
+  const strategies = useMemo(() => {
+    const strategyList = trades.map(t => t.strategy || "Unknown").filter(Boolean);
+    return ["all", ...Array.from(new Set(strategyList))];
+  }, [trades]);
 
   // Filter and sort trades
   const filteredAndSortedTrades = trades
@@ -17,7 +48,17 @@ export default function TradeHistory({ trades, onDeleteTrade }) {
       const matchesProfit = filterProfit === 'all' || 
         (filterProfit === 'profit' && trade.profit > 0) ||
         (filterProfit === 'loss' && trade.profit < 0);
-      return matchesSymbol && matchesProfit;
+      const matchesStrategy = filterStrategy === 'all' || trade.strategy === filterStrategy;
+      
+      // Date range filtering
+      let matchesDate = true;
+      if (dateRange.start || dateRange.end) {
+        const tradeDate = new Date(trade.date).toISOString().split('T')[0];
+        matchesDate = (!dateRange.start || tradeDate >= dateRange.start) && 
+                     (!dateRange.end || tradeDate <= dateRange.end);
+      }
+      
+      return matchesSymbol && matchesProfit && matchesStrategy && matchesDate;
     })
     .sort((a, b) => {
       let aValue, bValue;
@@ -62,59 +103,425 @@ export default function TradeHistory({ trades, onDeleteTrade }) {
     }
   };
 
-  const winningTrades = filteredAndSortedTrades.filter(t => t.profit > 0).length;
-  const losingTrades = filteredAndSortedTrades.filter(t => t.profit < 0).length;
-  const totalProfit = filteredAndSortedTrades.reduce((sum, t) => sum + t.profit, 0);
+  // Comprehensive Metrics Calculation
+  const metrics = useMemo(() => {
+    const filtered = filteredAndSortedTrades;
+    const totalTrades = filtered.length;
+    
+    if (totalTrades === 0) {
+      return {
+        totalPnL: 0,
+        winRate: 0,
+        profitFactor: 0,
+        avgWin: 0,
+        avgLoss: 0,
+        maxWin: 0,
+        maxLoss: 0,
+        maxDrawdown: 0,
+        sharpe: 0,
+        totalWins: 0,
+        totalLosses: 0,
+        consecutiveWins: 0,
+        consecutiveLosses: 0,
+        bestMonth: 0,
+        worstMonth: 0
+      };
+    }
+
+    const wins = filtered.filter(t => t.profit > 0);
+    const losses = filtered.filter(t => t.profit <= 0);
+    const totalPnL = filtered.reduce((sum, t) => sum + t.profit, 0);
+    const winRate = wins.length / totalTrades;
+    const avgWin = wins.length ? wins.reduce((sum, t) => sum + t.profit, 0) / wins.length : 0;
+    const avgLoss = losses.length ? Math.abs(losses.reduce((sum, t) => sum + t.profit, 0) / losses.length) : 0;
+    const profitFactor = avgLoss === 0 ? (wins.length ? Infinity : 0) : (wins.reduce((sum, t) => sum + t.profit, 0) / Math.abs(losses.reduce((sum, t) => sum + t.profit, 0)));
+    
+    const maxWin = wins.length ? Math.max(...wins.map(t => t.profit)) : 0;
+    const maxLoss = losses.length ? Math.min(...losses.map(t => t.profit)) : 0;
+
+    // Calculate max drawdown
+    let equity = 0;
+    let peak = 0;
+    let maxDD = 0;
+    filtered
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .forEach(t => {
+        equity += t.profit;
+        if (equity > peak) peak = equity;
+        const dd = peak ? (equity - peak) / peak : 0;
+        if (dd < maxDD) maxDD = dd;
+      });
+
+    // Calculate consecutive wins/losses
+    let consecutiveWins = 0;
+    let consecutiveLosses = 0;
+    let currentWins = 0;
+    let currentLosses = 0;
+    
+    filtered
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .forEach(t => {
+        if (t.profit > 0) {
+          currentWins++;
+          currentLosses = 0;
+          consecutiveWins = Math.max(consecutiveWins, currentWins);
+        } else {
+          currentLosses++;
+          currentWins = 0;
+          consecutiveLosses = Math.max(consecutiveLosses, currentLosses);
+        }
+      });
+
+    // Monthly performance
+    const monthlyPnL = {};
+    filtered.forEach(t => {
+      const month = new Date(t.date).toISOString().slice(0, 7);
+      monthlyPnL[month] = (monthlyPnL[month] || 0) + t.profit;
+    });
+    const monthlyValues = Object.values(monthlyPnL);
+    const bestMonth = monthlyValues.length ? Math.max(...monthlyValues) : 0;
+    const worstMonth = monthlyValues.length ? Math.min(...monthlyValues) : 0;
+
+    // Sharpe ratio (simplified)
+    const dailyReturns = filtered.map(t => t.profit);
+    const mean = dailyReturns.reduce((sum, r) => sum + r, 0) / dailyReturns.length;
+    const variance = dailyReturns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / dailyReturns.length;
+    const std = Math.sqrt(variance);
+    const sharpe = std === 0 ? 0 : mean / std;
+
+    return {
+      totalPnL,
+      winRate,
+      profitFactor,
+      avgWin,
+      avgLoss,
+      maxWin,
+      maxLoss,
+      maxDrawdown: Math.abs(maxDD),
+      sharpe,
+      totalWins: wins.length,
+      totalLosses: losses.length,
+      consecutiveWins,
+      consecutiveLosses,
+      bestMonth,
+      worstMonth
+    };
+  }, [filteredAndSortedTrades]);
+
+  // Symbol performance analysis
+  const symbolPerformance = useMemo(() => {
+    const symbolMap = {};
+    filteredAndSortedTrades.forEach(trade => {
+      if (!symbolMap[trade.symbol]) {
+        symbolMap[trade.symbol] = {
+          symbol: trade.symbol,
+          trades: 0,
+          totalPnL: 0,
+          wins: 0,
+          losses: 0
+        };
+      }
+      symbolMap[trade.symbol].trades++;
+      symbolMap[trade.symbol].totalPnL += trade.profit;
+      if (trade.profit > 0) symbolMap[trade.symbol].wins++;
+      else symbolMap[trade.symbol].losses++;
+    });
+    
+    return Object.values(symbolMap)
+      .map(s => ({
+        ...s,
+        winRate: s.trades > 0 ? s.wins / s.trades : 0
+      }))
+      .sort((a, b) => b.totalPnL - a.totalPnL)
+      .slice(0, 10);
+  }, [filteredAndSortedTrades]);
+
+  // Strategy performance analysis
+  const strategyPerformance = useMemo(() => {
+    const strategyMap = {};
+    filteredAndSortedTrades.forEach(trade => {
+      const strategy = trade.strategy || "Unknown";
+      if (!strategyMap[strategy]) {
+        strategyMap[strategy] = {
+          strategy,
+          trades: 0,
+          totalPnL: 0,
+          wins: 0,
+          losses: 0
+        };
+      }
+      strategyMap[strategy].trades++;
+      strategyMap[strategy].totalPnL += trade.profit;
+      if (trade.profit > 0) strategyMap[strategy].wins++;
+      else strategyMap[strategy].losses++;
+    });
+    
+    return Object.values(strategyMap)
+      .map(s => ({
+        ...s,
+        winRate: s.trades > 0 ? s.wins / s.trades : 0
+      }))
+      .sort((a, b) => b.totalPnL - a.totalPnL);
+  }, [filteredAndSortedTrades]);
 
   return (
     <div className="bg-gray-800/80 backdrop-blur-lg p-3 sm:p-4 lg:p-6 rounded-xl shadow-lg border border-gray-700/50">
       {/* Header with Stats */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
-        <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-            <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
-          </svg>
-          Trade History
-        </h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+              <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+            </svg>
+            Trade History
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="text-xs text-green-400 font-normal">Live</span>
+            </div>
+          </h2>
+          
+          {/* Metrics Toggle */}
+          <button
+            onClick={() => setShowMetrics(!showMetrics)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-2 ${
+              showMetrics 
+                ? 'bg-blue-600 text-white' 
+                : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            <BarChart3 className="h-4 w-4" />
+            {showMetrics ? 'Hide Metrics' : 'Show Metrics'}
+          </button>
+        </div>
         
         {/* Quick Stats */}
         <div className="flex flex-wrap gap-2 sm:gap-3 text-xs sm:text-sm">
           <div className="bg-gray-700/50 px-3 py-1 rounded-lg">
             <span className="text-gray-400">Total: </span>
-            <span className="text-white font-medium">{totalTrades}</span>
+            <span className="text-white font-medium">{filteredAndSortedTrades.length}</span>
           </div>
           <div className="bg-green-500/20 px-3 py-1 rounded-lg border border-green-500/30">
             <span className="text-green-400">Wins: </span>
-            <span className="text-green-300 font-medium">{winningTrades}</span>
+            <span className="text-green-300 font-medium">{metrics.totalWins}</span>
           </div>
           <div className="bg-red-500/20 px-3 py-1 rounded-lg border border-red-500/30">
             <span className="text-red-400">Losses: </span>
-            <span className="text-red-300 font-medium">{losingTrades}</span>
+            <span className="text-red-300 font-medium">{metrics.totalLosses}</span>
           </div>
-          <div className={`px-3 py-1 rounded-lg ${totalProfit >= 0 ? 'bg-green-500/20 border-green-500/30' : 'bg-red-500/20 border-red-500/30'} border`}>
-            <span className={totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}>P&L: </span>
-            <span className={`${totalProfit >= 0 ? 'text-green-300' : 'text-red-300'} font-medium`}>
-              {totalProfit >= 0 ? '+' : ''}${totalProfit.toFixed(2)}
+          <div className={`px-3 py-1 rounded-lg ${metrics.totalPnL >= 0 ? 'bg-green-500/20 border-green-500/30' : 'bg-red-500/20 border-red-500/30'} border`}>
+            <span className={metrics.totalPnL >= 0 ? 'text-green-400' : 'text-red-400'}>P&L: </span>
+            <span className={`${metrics.totalPnL >= 0 ? 'text-green-300' : 'text-red-300'} font-medium`}>
+              {formatCurrency(metrics.totalPnL)}
+            </span>
+          </div>
+          <div className="bg-blue-500/20 px-3 py-1 rounded-lg border border-blue-500/30">
+            <span className="text-blue-400">Win Rate: </span>
+            <span className="text-blue-300 font-medium">{pct(metrics.winRate)}</span>
+          </div>
+          <div className="bg-purple-500/20 px-3 py-1 rounded-lg border border-purple-500/30">
+            <span className="text-purple-400">P.Factor: </span>
+            <span className="text-purple-300 font-medium">
+              {Number.isFinite(metrics.profitFactor) ? metrics.profitFactor.toFixed(2) : "∞"}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Filters and Controls */}
-      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-4 sm:mb-6">
+      {/* Comprehensive Metrics Section */}
+      {showMetrics && (
+        <div className="mb-6 p-4 bg-gray-700/30 rounded-xl border border-gray-600/30">
+          <h3 className="text-lg font-semibold text-white mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Activity className="h-5 w-5 text-blue-400" />
+              Real-time Performance Metrics
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+            </div>
+            <div className="text-xs text-gray-400">
+              Last updated: {lastUpdate.toLocaleTimeString()}
+            </div>
+          </h3>
+          
+          {/* Primary KPIs */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-4">
+            <MetricCard 
+              title="Total P&L" 
+              value={formatCurrency(metrics.totalPnL)} 
+              icon={<DollarSign className="h-4 w-4" />}
+              color={metrics.totalPnL >= 0 ? "green" : "red"}
+            />
+            <MetricCard 
+              title="Win Rate" 
+              value={pct(metrics.winRate)} 
+              icon={<Target className="h-4 w-4" />}
+              color="blue"
+            />
+            <MetricCard 
+              title="Profit Factor" 
+              value={Number.isFinite(metrics.profitFactor) ? metrics.profitFactor.toFixed(2) : "∞"} 
+              icon={<RiskIcon className="h-4 w-4" />}
+              color="purple"
+            />
+            <MetricCard 
+              title="Avg Win" 
+              value={formatCurrency(metrics.avgWin)} 
+              icon={<TrendingUp className="h-4 w-4" />}
+              color="green"
+            />
+            <MetricCard 
+              title="Avg Loss" 
+              value={formatCurrency(metrics.avgLoss)} 
+              icon={<TrendingDown className="h-4 w-4" />}
+              color="red"
+            />
+            <MetricCard 
+              title="Max DD" 
+              value={pct(metrics.maxDrawdown)} 
+              icon={<TrendingDown className="h-4 w-4" />}
+              color="red"
+            />
+          </div>
+
+          {/* Secondary Metrics */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-4">
+            <MetricCard 
+              title="Max Win" 
+              value={formatCurrency(metrics.maxWin)} 
+              icon={<TrendingUp className="h-4 w-4" />}
+              color="green"
+            />
+            <MetricCard 
+              title="Max Loss" 
+              value={formatCurrency(metrics.maxLoss)} 
+              icon={<TrendingDown className="h-4 w-4" />}
+              color="red"
+            />
+            <MetricCard 
+              title="Consecutive Wins" 
+              value={metrics.consecutiveWins.toString()} 
+              icon={<TrendingUp className="h-4 w-4" />}
+              color="green"
+            />
+            <MetricCard 
+              title="Consecutive Losses" 
+              value={metrics.consecutiveLosses.toString()} 
+              icon={<TrendingDown className="h-4 w-4" />}
+              color="red"
+            />
+            <MetricCard 
+              title="Best Month" 
+              value={formatCurrency(metrics.bestMonth)} 
+              icon={<Calendar className="h-4 w-4" />}
+              color="green"
+            />
+            <MetricCard 
+              title="Worst Month" 
+              value={formatCurrency(metrics.worstMonth)} 
+              icon={<Calendar className="h-4 w-4" />}
+              color="red"
+            />
+          </div>
+
+          {/* Performance Tables */}
+          <div className="grid lg:grid-cols-2 gap-4">
+            {/* Top Symbols */}
+            <div className="bg-gray-800/50 rounded-lg p-3">
+              <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-blue-400" />
+                Top Performing Symbols
+              </h4>
+              <div className="space-y-2">
+                {symbolPerformance.slice(0, 5).map((symbol, index) => (
+                  <div key={symbol.symbol} className="flex justify-between items-center text-xs">
+                    <span className="text-gray-300">{symbol.symbol}</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`${symbol.totalPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {formatCurrency(symbol.totalPnL)}
+                      </span>
+                      <span className="text-gray-400">({symbol.trades})</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Strategy Performance */}
+            <div className="bg-gray-800/50 rounded-lg p-3">
+              <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                <Target className="h-4 w-4 text-purple-400" />
+                Strategy Performance
+              </h4>
+              <div className="space-y-2">
+                {strategyPerformance.slice(0, 5).map((strategy, index) => (
+                  <div key={strategy.strategy} className="flex justify-between items-center text-xs">
+                    <span className="text-gray-300">{strategy.strategy}</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`${strategy.totalPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {formatCurrency(strategy.totalPnL)}
+                      </span>
+                      <span className="text-gray-400">({pct(strategy.winRate)})</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Enhanced Filters and Controls */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
         {/* Symbol Filter */}
-        <div className="flex-1">
-          <label className="block text-xs sm:text-sm font-medium text-gray-400 mb-1 sm:mb-2">Filter by Symbol</label>
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-400 mb-1 sm:mb-2">Symbol</label>
           <input
             type="text"
-            placeholder="e.g., EURUSD, GBPJPY"
+            placeholder="e.g., EURUSD"
             value={filterSymbol}
             onChange={(e) => handleFilterChange(() => setFilterSymbol(e.target.value))}
             className="w-full px-2 sm:px-3 py-1 sm:py-2 bg-gray-700/70 text-white rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
           />
         </div>
 
+        {/* Strategy Filter */}
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-400 mb-1 sm:mb-2">Strategy</label>
+          <select
+            value={filterStrategy}
+            onChange={(e) => handleFilterChange(() => setFilterStrategy(e.target.value))}
+            className="w-full px-2 sm:px-3 py-1 sm:py-2 bg-gray-700/70 text-white rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
+          >
+            <option value="all">All Strategies</option>
+            {strategies.slice(1).map(strategy => (
+              <option key={strategy} value={strategy}>{strategy}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Date Range */}
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-400 mb-1 sm:mb-2">From Date</label>
+          <input
+            type="date"
+            value={dateRange.start}
+            onChange={(e) => handleFilterChange(() => setDateRange(prev => ({ ...prev, start: e.target.value })))}
+            className="w-full px-2 sm:px-3 py-1 sm:py-2 bg-gray-700/70 text-white rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs sm:text-sm font-medium text-gray-400 mb-1 sm:mb-2">To Date</label>
+          <input
+            type="date"
+            value={dateRange.end}
+            onChange={(e) => handleFilterChange(() => setDateRange(prev => ({ ...prev, end: e.target.value })))}
+            className="w-full px-2 sm:px-3 py-1 sm:py-2 bg-gray-700/70 text-white rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Sort Controls */}
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-4 sm:mb-6">
         {/* Profit Filter */}
         <div className="sm:w-32">
           <label className="block text-xs sm:text-sm font-medium text-gray-400 mb-1 sm:mb-2">Result</label>
@@ -310,3 +717,29 @@ export default function TradeHistory({ trades, onDeleteTrade }) {
     </div>
   );
 }
+// MetricCard Component
+function MetricCard({ title, value, icon, color = "blue" }) {
+  const colorClasses = {
+    green: "text-green-400 bg-green-500/20 border-green-500/30",
+    red: "text-red-400 bg-red-500/20 border-red-500/30",
+    blue: "text-blue-400 bg-blue-500/20 border-blue-500/30",
+    purple: "text-purple-400 bg-purple-500/20 border-purple-500/30",
+    yellow: "text-yellow-400 bg-yellow-500/20 border-yellow-500/30"
+  };
+
+  return (
+    <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600/30 hover:border-gray-500/50 transition-all duration-200">
+      <div className="flex items-center justify-between mb-2">
+        <div className={`p-1.5 rounded-lg ${colorClasses[color]}`}>
+          {icon}
+        </div>
+        <div className={`w-2 h-2 rounded-full ${colorClasses[color].split(' ')[0].replace('text-', 'bg-')}`}></div>
+      </div>
+      <div className="text-xs text-gray-400 mb-1">{title}</div>
+      <div className={`text-sm font-bold ${colorClasses[color].split(' ')[0]}`}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
