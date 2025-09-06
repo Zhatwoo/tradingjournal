@@ -10,9 +10,12 @@ import AddTradeModal from '../components/AddTrade';
 import Footer from '../components/Footer';
 import { ArrowLeft } from 'lucide-react';
 import { calculateTradeProfitLoss } from '../utils/forexCalculations';
+import { useTimezone } from '../contexts/TimezoneContext';
+import { createDateTimeFromDeviceTime } from '../utils/timezoneUtils';
 
 export default function AddTradePage() {
   const router = useRouter();
+  const { userTimezone } = useTimezone();
   const [user, setUser] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -106,24 +109,41 @@ export default function AddTradePage() {
 
     setLoading(true);
     try {
+      // Use custom formData from modal if available, otherwise use state
+      const dataToSubmit = e.target?.formData || formData;
+      
+      // Validate required fields
+      if (!dataToSubmit.symbol) {
+        setMessage({ type: 'error', text: 'Symbol is required.' });
+        setLoading(false);
+        return;
+      }
+      
       let imageUrl = null;
-      if (formData.image) {
-        const storageRef = ref(storage, `trades1/${user.uid}/${Date.now()}_${formData.image.name}`);
-        await uploadBytes(storageRef, formData.image);
+      if (dataToSubmit.image) {
+        const storageRef = ref(storage, `trades1/${user.uid}/${Date.now()}_${dataToSubmit.image.name}`);
+        await uploadBytes(storageRef, dataToSubmit.image);
         imageUrl = await getDownloadURL(storageRef);
       }
 
-      await addDoc(collection(db, "trades1"), {
+      const tradeData = {
         userId: user.uid,
-        symbol: formData.symbol,
-        entry: Number(formData.entry),
-        exit: Number(formData.exit),
-        lotSize: Number(formData.lotSize),
-        profit: Number(formData.profit),
-        notes: formData.notes,
+        symbol: dataToSubmit.symbol,
+        entry: Number(dataToSubmit.entry) || 0,
+        exit: Number(dataToSubmit.exit) || 0,
+        lotSize: Number(dataToSubmit.lotSize) || 0,
+        profit: Number(dataToSubmit.profit) || 0,
+        notes: dataToSubmit.notes || "",
         image: imageUrl,
-        date: new Date().toISOString(),
-      });
+        accountType: dataToSubmit.accountType || "STANDARD",
+        tradeDirection: dataToSubmit.tradeDirection || "BUY",
+        stopLossPips: dataToSubmit.stopLossPips ? Number(dataToSubmit.stopLossPips) : null,
+        date: dataToSubmit.deviceTimeTimestamp || createDateTimeFromDeviceTime(new Date()), // Use device time with current date
+      };
+
+      console.log("Adding trade from addtrade page:", tradeData);
+      await addDoc(collection(db, "trades1"), tradeData);
+      console.log("Trade added successfully from addtrade page");
 
       setFormData({ symbol: "", entry: "", exit: "", lotSize: "", profit: "", notes: "", image: null, accountType: "STANDARD", tradeDirection: "BUY", stopLossPips: "" });
       setImagePreview(null);

@@ -100,10 +100,11 @@ export default function DashboardHeader({ username = "Trader", balance = 12500, 
     const calculateCenteredPosition = () => {
       if (typeof window !== 'undefined') {
         const screenWidth = window.innerWidth;
-        const isMobile = screenWidth < 768; // md breakpoint
+        const isSmallScreen = screenWidth < 1024; // lg breakpoint - use 2-row layout
+        const isMobile = screenWidth < 640; // sm breakpoint - no drag
         
-        if (isMobile) {
-          // On mobile, use sticky positioning (no floating)
+        if (isSmallScreen) {
+          // On small screens (mobile/tablet), use sticky positioning (no floating)
           const newPosition = { x: 0, y: 0 };
           setPosition(newPosition);
           setOriginalPosition(newPosition);
@@ -145,8 +146,8 @@ export default function DashboardHeader({ username = "Trader", balance = 12500, 
   return (
     <header 
       ref={headerRef}
-      className={`bg-gray-900/95 backdrop-blur-md text-white border border-gray-600 shadow-lg sticky md:fixed z-40 w-full md:w-1/2 rounded-none md:rounded-xl transition-all duration-200 ${
-        isDragging ? 'cursor-grabbing scale-105 shadow-2xl' : 'md:cursor-grab'
+      className={`bg-gray-900/95 backdrop-blur-md text-white border border-gray-600 shadow-lg sticky lg:fixed z-40 w-full lg:w-1/2 rounded-none lg:rounded-xl transition-all duration-200 ${
+        isDragging ? 'cursor-grabbing scale-105 shadow-2xl' : 'lg:cursor-grab'
       }`}
       style={{
         left: position.x,
@@ -155,69 +156,69 @@ export default function DashboardHeader({ username = "Trader", balance = 12500, 
       }}
       onMouseDown={handleMouseDown}
     >
-      <div className="py-2 md:py-3 px-3 md:px-6">
-        {/* Mobile Layout - Two Rows */}
-        <div className="md:hidden">
+      <div className="py-2 sm:py-2.5 md:py-3 lg:py-3 px-3 sm:px-4 md:px-6 lg:px-6">
+        {/* Two-Row Layout - Mobile, Tablet, and Small Desktop */}
+        <div className="lg:hidden">
           {/* Top Row - Quick Actions Only */}
-          <div className="flex justify-center items-center gap-2">
-            <div className="flex gap-1">
+          <div className="flex justify-center items-center gap-2 sm:gap-3">
+            <div className="flex gap-1 sm:gap-2">
               <button
                 onClick={handleProfile}
-                className="flex items-center gap-1 px-2 py-1 rounded bg-green-600 hover:bg-green-500 transition text-xs"
+                className="flex items-center gap-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded bg-green-600 hover:bg-green-500 transition text-xs sm:text-sm min-h-[32px] sm:min-h-[36px] md:min-h-[40px]"
                 title="View Profile"
               >
-                <User size={14} />
+                <User size={14} className="sm:w-4 sm:h-4 md:w-5 md:h-5" />
               </button>
               <button
                 onClick={handleSettings}
-                className="flex items-center gap-1 px-2 py-1 rounded bg-purple-600 hover:bg-purple-500 transition text-xs"
+                className="flex items-center gap-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded bg-purple-600 hover:bg-purple-500 transition text-xs sm:text-sm min-h-[32px] sm:min-h-[36px] md:min-h-[40px]"
               >
-                <Settings size={14} />
+                <Settings size={14} className="sm:w-4 sm:h-4 md:w-5 md:h-5" />
               </button>
               <button
                 onClick={handleSuggestions}
-                className="flex items-center gap-1 px-2 py-1 rounded bg-yellow-600 hover:bg-yellow-500 transition text-xs"
+                className="flex items-center gap-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded bg-yellow-600 hover:bg-yellow-500 transition text-xs sm:text-sm min-h-[32px] sm:min-h-[36px] md:min-h-[40px]"
               >
-                <Lightbulb size={14} />
+                <Lightbulb size={14} className="sm:w-4 sm:h-4 md:w-5 md:h-5" />
               </button>
               {returnTimeout && (
                 <button
                   onClick={returnToOriginal}
-                  className="flex items-center gap-1 px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 transition text-xs"
+                  className="flex items-center gap-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded bg-blue-600 hover:bg-blue-500 transition text-xs sm:text-sm min-h-[32px] sm:min-h-[36px] md:min-h-[40px]"
                   title="Return to Original Position"
                 >
-                  <Move size={14} />
+                  <Move size={14} className="sm:w-4 sm:h-4 md:w-5 md:h-5" />
                 </button>
               )}
             </div>
           </div>
 
           {/* Bottom Row - Profile (Left) and Key Metrics (Right) */}
-          <div className="mt-2 pt-2 border-t border-gray-600">
-            <div className="flex justify-between items-center gap-2 min-w-0">
+          <div className="mt-2 sm:mt-2.5 md:mt-3 pt-2 sm:pt-2.5 md:pt-3 border-t border-gray-600">
+            <div className="flex justify-between items-center gap-2 sm:gap-3 md:gap-4 min-w-0">
               {/* Profile Section - Left Side */}
-              <div className="flex items-center gap-2 min-w-0 flex-shrink">
-                <div className="flex items-center gap-1">
-                  <Move className="w-3 h-3 text-gray-400 opacity-50" />
-                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+              <div className="flex items-center gap-2 sm:gap-3 md:gap-4 min-w-0 flex-shrink">
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <Move className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-gray-400 opacity-50" />
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm sm:text-base md:text-lg">
                     {username[0].toUpperCase()}
                   </div>
                 </div>
                 <div className="flex flex-col min-w-0">
-                  <span className="font-medium text-xs truncate">{username}</span>
-                  <span className="text-gray-400 text-[10px]">Trader</span>
+                  <span className="font-medium text-xs sm:text-sm md:text-base truncate">{username}</span>
+                  <span className="text-gray-400 text-[10px] sm:text-xs md:text-sm">Trader</span>
                 </div>
               </div>
 
               {/* Key Metrics - Right Side */}
-              <div className="flex items-center gap-2 min-w-0 flex-shrink">
+              <div className="flex items-center gap-2 sm:gap-3 md:gap-4 min-w-0 flex-shrink">
                 <div className="text-center min-w-0 flex-shrink">
-                  <span className="text-gray-400 text-[10px] block uppercase">Balance</span>
-                  <span className="font-semibold text-xs truncate block">${balance.toLocaleString()}</span>
+                  <span className="text-gray-400 text-[10px] sm:text-xs md:text-sm block uppercase">Balance</span>
+                  <span className="font-semibold text-xs sm:text-sm md:text-base truncate block">${balance.toLocaleString()}</span>
                 </div>
                 <div className="text-center min-w-0 flex-shrink">
-                  <span className="text-gray-400 text-[10px] block uppercase">P&L</span>
-                  <span className={`font-semibold text-xs truncate block ${dailyPnL >= 0 ? "text-green-400" : "text-red-500"}`}>
+                  <span className="text-gray-400 text-[10px] sm:text-xs md:text-sm block uppercase">P&L</span>
+                  <span className={`font-semibold text-xs sm:text-sm md:text-base truncate block ${dailyPnL >= 0 ? "text-green-400" : "text-red-500"}`}>
                     ${dailyPnL.toLocaleString()}
                   </span>
                 </div>
@@ -226,19 +227,19 @@ export default function DashboardHeader({ username = "Trader", balance = 12500, 
           </div>
         </div>
 
-        {/* Desktop Layout - Single Row */}
-        <div className="hidden md:flex justify-between items-center gap-6">
+        {/* Desktop Layout - Single Row (Large screens only) */}
+        <div className="hidden lg:flex justify-between items-center gap-4 xl:gap-6">
           {/* Profile Section - Left Side */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Move className="w-4 h-4 text-gray-400 opacity-50" />
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-base">
+          <div className="flex items-center gap-3 xl:gap-4">
+            <div className="flex items-center gap-2 xl:gap-3">
+              <Move className="w-4 h-4 xl:w-5 xl:h-5 text-gray-400 opacity-50" />
+              <div className="w-10 h-10 xl:w-12 xl:h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-base xl:text-lg">
                 {username[0].toUpperCase()}
               </div>
             </div>
             <div className="flex flex-col">
-              <span className="font-medium text-sm">{username}</span>
-              <span className="text-gray-400 text-xs">Trader</span>
+              <span className="font-medium text-sm xl:text-base">{username}</span>
+              <span className="text-gray-400 text-xs xl:text-sm">Trader</span>
             </div>
             {returnTimeout && (
               <div className="flex items-center gap-2 ml-2">
@@ -247,47 +248,47 @@ export default function DashboardHeader({ username = "Trader", balance = 12500, 
           </div>
 
           {/* Key Metrics - Centered */}
-          <div className="flex items-center gap-4 min-w-0 flex-1 justify-center">
+          <div className="flex items-center gap-4 xl:gap-6 min-w-0 flex-1 justify-center">
             <div className="text-center min-w-0 flex-shrink">
-              <span className="text-gray-400 text-xs block uppercase">Balance</span>
-              <span className="font-semibold text-sm truncate block">${balance.toLocaleString()}</span>
+              <span className="text-gray-400 text-xs xl:text-sm block uppercase">Balance</span>
+              <span className="font-semibold text-sm xl:text-base truncate block">${balance.toLocaleString()}</span>
             </div>
             <div className="text-center min-w-0 flex-shrink">
-              <span className="text-gray-400 text-xs block uppercase">P&L</span>
-              <span className={`font-semibold text-sm truncate block ${dailyPnL >= 0 ? "text-green-400" : "text-red-500"}`}>
+              <span className="text-gray-400 text-xs xl:text-sm block uppercase">P&L</span>
+              <span className={`font-semibold text-sm xl:text-base truncate block ${dailyPnL >= 0 ? "text-green-400" : "text-red-500"}`}>
                 ${dailyPnL.toLocaleString()}
               </span>
             </div>
           </div>
 
           {/* Quick Actions */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 xl:gap-3">
             <button
               onClick={handleProfile}
-              className="flex items-center gap-1 px-3 py-1 rounded bg-green-600 hover:bg-green-500 transition text-xs"
+              className="flex items-center gap-1 px-3 xl:px-4 py-1.5 xl:py-2 rounded bg-green-600 hover:bg-green-500 transition text-xs xl:text-sm"
               title="View Profile"
             >
-              <User size={16} />
+              <User size={16} className="xl:w-5 xl:h-5" />
             </button>
             <button
               onClick={handleSettings}
-              className="flex items-center gap-1 px-3 py-1 rounded bg-purple-600 hover:bg-purple-500 transition text-xs"
+              className="flex items-center gap-1 px-3 xl:px-4 py-1.5 xl:py-2 rounded bg-purple-600 hover:bg-purple-500 transition text-xs xl:text-sm"
             >
-              <Settings size={16} />
+              <Settings size={16} className="xl:w-5 xl:h-5" />
             </button>
             <button
               onClick={handleSuggestions}
-              className="flex items-center gap-1 px-3 py-1 rounded bg-yellow-600 hover:bg-yellow-500 transition text-xs"
+              className="flex items-center gap-1 px-3 xl:px-4 py-1.5 xl:py-2 rounded bg-yellow-600 hover:bg-yellow-500 transition text-xs xl:text-sm"
             >
-              <Lightbulb size={16} />
+              <Lightbulb size={16} className="xl:w-5 xl:h-5" />
             </button>
             {returnTimeout && (
               <button
                 onClick={returnToOriginal}
-                className="flex items-center gap-1 px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 transition text-xs"
+                className="flex items-center gap-1 px-3 xl:px-4 py-1.5 xl:py-2 rounded bg-blue-600 hover:bg-blue-500 transition text-xs xl:text-sm"
                 title="Return to Original Position"
               >
-                <Move size={16} />
+                <Move size={16} className="xl:w-5 xl:h-5" />
               </button>
             )}
           </div>

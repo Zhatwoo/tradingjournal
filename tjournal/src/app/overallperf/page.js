@@ -121,10 +121,7 @@ export default function OverallPerfPage() {
         </div>
       </div>
 
-      <Footer 
-        sidebarOpen={sidebarOpen} 
-        isMobile={isMobile} 
-      />
+      <Footer />
 
       <style jsx global>{`
         @keyframes blob {

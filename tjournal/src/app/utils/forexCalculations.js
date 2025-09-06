@@ -252,3 +252,222 @@ export function getAccountTypes() {
     description: ACCOUNT_TYPES[key].description
   }));
 }
+
+/**
+ * Calculate lot size from profit/loss amount (optimized)
+ */
+export function calculateLotSizeFromPL(symbol, entryPrice, exitPrice, profitLoss, accountType = 'STANDARD', tradeDirection = 'BUY') {
+  // Input validation
+  if (!symbol || !entryPrice || !exitPrice || profitLoss === undefined || profitLoss === null) {
+    return { lotSize: 0, isValid: false, error: 'Missing required parameters' };
+  }
+
+  const pairConfig = getCurrencyPairConfig(symbol);
+  if (!pairConfig) {
+    return { lotSize: 0, isValid: false, error: `Unknown currency pair: ${symbol}` };
+  }
+
+  // Validate prices
+  if (entryPrice <= 0 || exitPrice <= 0) {
+    return { lotSize: 0, isValid: false, error: 'Entry and exit prices must be positive' };
+  }
+
+  // Calculate price difference in pips
+  const priceDifference = Math.abs(exitPrice - entryPrice);
+  const pipDifference = priceDifference / pairConfig.pipSize;
+  
+  // Check for zero price movement
+  if (pipDifference < 0.1) { // Less than 0.1 pip
+    return { lotSize: 0, isValid: false, error: 'Price movement too small for calculation' };
+  }
+  
+  // Calculate pip value for 1 lot
+  const pipValue = calculatePipValue(symbol, accountType, entryPrice);
+  
+  if (pipValue <= 0) {
+    return { lotSize: 0, isValid: false, error: 'Invalid pip value calculation' };
+  }
+  
+  // Calculate lot size: profitLoss = pipDifference * pipValue * lotSize
+  // Therefore: lotSize = profitLoss / (pipDifference * pipValue)
+  // Use absolute value for lot size calculation since lot size is always positive
+  const lotSize = Math.abs(profitLoss) / (pipDifference * pipValue);
+  
+  // Validate lot size
+  const minLotSize = 0.01;
+  const maxLotSize = accountType.toUpperCase() === 'MICRO' ? 10 : 
+                    accountType.toUpperCase() === 'MINI' ? 100 : 1000;
+  
+  if (lotSize < minLotSize) {
+    return { lotSize, isValid: false, error: `Lot size too small (min: ${minLotSize})` };
+  }
+  
+  if (lotSize > maxLotSize) {
+    return { lotSize, isValid: false, error: `Lot size too large (max: ${maxLotSize})` };
+  }
+  
+  return { 
+    lotSize: Math.round(lotSize * 100) / 100, // Round to 2 decimal places
+    isValid: true, 
+    error: null,
+    pipDifference: Math.round(pipDifference * 10) / 10, // Round to 1 decimal place
+    pipValue: Math.round(pipValue * 100) / 100 // Round to 2 decimal places
+  };
+}
+
+/**
+ * Calculate stop loss pips from risk amount (optimized)
+ */
+export function calculateStopLossPipsFromRisk(symbol, lotSize, riskAmount, accountType = 'STANDARD', currentPrice = 1) {
+  // Input validation
+  if (!symbol || !lotSize || !riskAmount || !currentPrice) {
+    return { stopLossPips: 0, isValid: false, error: 'Missing required parameters' };
+  }
+
+  if (lotSize <= 0 || riskAmount <= 0 || currentPrice <= 0) {
+    return { stopLossPips: 0, isValid: false, error: 'Values must be positive' };
+  }
+
+  const pipValue = calculatePipValue(symbol, accountType, currentPrice);
+  
+  if (pipValue <= 0) {
+    return { stopLossPips: 0, isValid: false, error: 'Invalid pip value calculation' };
+  }
+  
+  // riskAmount = stopLossPips * pipValue * lotSize
+  // Therefore: stopLossPips = riskAmount / (pipValue * lotSize)
+  const stopLossPips = riskAmount / (pipValue * lotSize);
+  
+  // Validate stop loss pips
+  if (stopLossPips < 1) {
+    return { stopLossPips, isValid: false, error: 'Stop loss too small (min: 1 pip)' };
+  }
+  
+  if (stopLossPips > 1000) {
+    return { stopLossPips, isValid: false, error: 'Stop loss too large (max: 1000 pips)' };
+  }
+  
+  return { 
+    stopLossPips: Math.round(stopLossPips * 10) / 10, // Round to 1 decimal place
+    isValid: true, 
+    error: null,
+    pipValue: Math.round(pipValue * 100) / 100 // Round to 2 decimal places
+  };
+}
+
+/**
+ * Calculate risk amount from stop loss pips (optimized)
+ */
+export function calculateRiskAmountFromStopLoss(symbol, lotSize, stopLossPips, accountType = 'STANDARD', currentPrice = 1) {
+  // Input validation
+  if (!symbol || !lotSize || stopLossPips === undefined || stopLossPips === null || !currentPrice) {
+    return { riskAmount: 0, isValid: false, error: 'Missing required parameters' };
+  }
+
+  if (lotSize <= 0 || currentPrice <= 0) {
+    return { riskAmount: 0, isValid: false, error: 'Lot size and price must be positive' };
+  }
+
+  const pipValue = calculatePipValue(symbol, accountType, currentPrice);
+  
+  if (pipValue <= 0) {
+    return { riskAmount: 0, isValid: false, error: 'Invalid pip value calculation' };
+  }
+
+  const riskAmount = Math.abs(stopLossPips) * pipValue * lotSize;
+  
+  // Validate risk amount
+  if (riskAmount <= 0) {
+    return { riskAmount, isValid: false, error: 'Invalid risk amount calculation' };
+  }
+  
+  return { 
+    riskAmount: Math.round(riskAmount * 100) / 100, // Round to 2 decimal places
+    isValid: true, 
+    error: null,
+    pipValue: Math.round(pipValue * 100) / 100 // Round to 2 decimal places
+  };
+}
+
+/**
+ * Calculate equivalent lot size for manual P&L (optimized)
+ */
+export function calculateEquivalentLotSize(symbol, entryPrice, exitPrice, manualPL, accountType = 'STANDARD', tradeDirection = 'BUY') {
+  return calculateLotSizeFromPL(symbol, entryPrice, exitPrice, manualPL, accountType, tradeDirection);
+}
+
+/**
+ * Calculate equivalent stop loss pips for a given risk amount (optimized)
+ */
+export function calculateEquivalentStopLossPips(symbol, lotSize, riskAmount, accountType = 'STANDARD', currentPrice = 1) {
+  return calculateStopLossPipsFromRisk(symbol, lotSize, riskAmount, accountType, currentPrice);
+}
+
+/**
+ * Calculate equivalent risk amount for a given stop loss (optimized)
+ */
+export function calculateEquivalentRiskAmount(symbol, lotSize, stopLossPips, accountType = 'STANDARD', currentPrice = 1) {
+  return calculateRiskAmountFromStopLoss(symbol, lotSize, stopLossPips, accountType, currentPrice);
+}
+
+/**
+ * Comprehensive reverse calculation for manual P&L (optimized)
+ * Returns all equivalent values in a single optimized calculation
+ */
+export function calculateReverseMetrics(symbol, entryPrice, exitPrice, manualPL, originalLotSize, originalStopLossPips, accountType = 'STANDARD', tradeDirection = 'BUY') {
+  // Input validation
+  if (!symbol || !entryPrice || !exitPrice || manualPL === undefined || manualPL === null) {
+    return {
+      equivalentLotSize: { lotSize: 0, isValid: false, error: 'Missing required parameters' },
+      equivalentStopLossPips: { stopLossPips: 0, isValid: false, error: 'Missing required parameters' },
+      equivalentRiskAmount: { riskAmount: 0, isValid: false, error: 'Missing required parameters' },
+      summary: { isValid: false, error: 'Missing required parameters' }
+    };
+  }
+
+  // Calculate equivalent lot size
+  const lotSizeResult = calculateLotSizeFromPL(symbol, entryPrice, exitPrice, manualPL, accountType, tradeDirection);
+  
+  // Calculate equivalent stop loss and risk if we have original values
+  let stopLossResult = { stopLossPips: 0, isValid: false, error: 'No original stop loss provided' };
+  let riskResult = { riskAmount: 0, isValid: false, error: 'No original risk amount' };
+  
+  // Calculate original risk amount once to avoid redundant calculations
+  const originalRiskAmount = originalStopLossPips ? calculateRiskAmount(symbol, originalLotSize || 1, originalStopLossPips, accountType, entryPrice) : 0;
+  
+  if (originalStopLossPips && lotSizeResult.isValid) {
+    // Calculate equivalent stop loss pips based on original risk amount
+    stopLossResult = calculateStopLossPipsFromRisk(symbol, lotSizeResult.lotSize, originalRiskAmount, accountType, entryPrice);
+    
+    // Calculate equivalent risk amount based on original stop loss
+    riskResult = calculateRiskAmountFromStopLoss(symbol, lotSizeResult.lotSize, originalStopLossPips, accountType, entryPrice);
+  }
+  
+  // Create summary
+  const summary = {
+    isValid: lotSizeResult.isValid,
+    error: lotSizeResult.error,
+    originalValues: {
+      lotSize: originalLotSize || 0,
+      stopLossPips: originalStopLossPips || 0,
+      riskAmount: originalRiskAmount
+    },
+    equivalentValues: {
+      lotSize: lotSizeResult.lotSize,
+      stopLossPips: stopLossResult.stopLossPips,
+      riskAmount: riskResult.riskAmount
+    },
+    differences: {
+      lotSizeDiff: lotSizeResult.isValid ? lotSizeResult.lotSize - (originalLotSize || 0) : 0,
+      stopLossDiff: stopLossResult.isValid ? stopLossResult.stopLossPips - (originalStopLossPips || 0) : 0,
+      riskDiff: riskResult.isValid ? riskResult.riskAmount - originalRiskAmount : 0
+    }
+  };
+  
+  return {
+    equivalentLotSize: lotSizeResult,
+    equivalentStopLossPips: stopLossResult,
+    equivalentRiskAmount: riskResult,
+    summary
+  };
+}
