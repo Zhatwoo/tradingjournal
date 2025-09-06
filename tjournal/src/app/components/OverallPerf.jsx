@@ -103,6 +103,7 @@ export default function PerformancePage() {
   
   const [strategy, setStrategy] = useState("ALL");
   const [session, setSession] = useState("ALL");
+  const [selectedYear, setSelectedYear] = useState("ALL");
   
   // Set default date range to current month
   const getDefaultDateRange = () => {
@@ -175,9 +176,10 @@ export default function PerformancePage() {
       const inDate = (!start || t.date >= start) && (!end || t.date <= end);
       const inStrat = strategy === "ALL" || t.strategy === strategy;
       const inSession = session === "ALL" || t.session === session;
-      return inDate && inStrat && inSession;
+      const inYear = selectedYear === "ALL" || new Date(t.date).getFullYear() === selectedYear;
+      return inDate && inStrat && inSession && inYear;
     });
-  }, [transformedTrades, strategy, session, start, end]);
+  }, [transformedTrades, strategy, session, start, end, selectedYear]);
 
   // -----------------
   // 🧮 ENHANCED KPI CALCULATIONS
@@ -742,7 +744,7 @@ export default function PerformancePage() {
                 <div className="flex-1 h-px bg-gradient-to-r from-gray-600/50 to-transparent"></div>
               </div>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
                 {/* Date Range Filter */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
@@ -763,6 +765,47 @@ export default function PerformancePage() {
                       onChange={(e) => setEnd(e.target.value)}
                       className="bg-gray-700/60 border border-gray-600/60 rounded-xl px-3 py-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex-1 min-w-0 transition-all"
                     />
+                  </div>
+                </div>
+
+                {/* Year Filter */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm text-gray-300 font-semibold">Year</span>
+                  </div>
+                  <div className="space-y-2">
+                    {/* All Years Button */}
+                    <button
+                      onClick={() => setSelectedYear("ALL")}
+                      className={`w-full px-2 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 ${
+                        selectedYear === "ALL"
+                          ? "bg-purple-500 text-white shadow-md ring-2 ring-purple-400/50"
+                          : "bg-gray-700/60 text-gray-300 hover:bg-gray-600/60 hover:text-white border border-gray-600/60"
+                      }`}
+                    >
+                      All Years
+                    </button>
+                    {/* Year Buttons Grid */}
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {Array.from({ length: 6 }, (_, i) => {
+                        const year = new Date().getFullYear() - i;
+                        const isSelected = selectedYear === year;
+                        return (
+                          <button
+                            key={year}
+                            onClick={() => setSelectedYear(year)}
+                            className={`px-2 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 ${
+                              isSelected
+                                ? "bg-purple-500 text-white shadow-md ring-2 ring-purple-400/50"
+                                : "bg-gray-700/60 text-gray-300 hover:bg-gray-600/60 hover:text-white border border-gray-600/60"
+                            }`}
+                          >
+                            {year}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
@@ -839,6 +882,7 @@ export default function PerformancePage() {
                         setEnd(defaultRange.end);
                         setStrategy("ALL");
                         setSession("ALL");
+                        setSelectedYear("ALL");
                       }}
                       className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-600/20 hover:bg-gray-600/30 text-gray-300 rounded-xl text-xs font-semibold transition-all duration-200 border border-gray-600/30"
                     >

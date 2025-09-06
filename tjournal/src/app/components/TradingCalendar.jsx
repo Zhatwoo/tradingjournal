@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 export default function TradingCalendar({ 
   filteredTrades, 
@@ -31,7 +31,11 @@ export default function TradingCalendar({
   // Create calendar days in ascending order (1 to daysInMonth)
   const calendarDays = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-  const availableYears = Array.from(new Set(filteredTrades.map(t => new Date(t.date).getFullYear()))).sort((a, b) => b - a);
+  // Memoize year generation for performance
+  const availableYears = useMemo(() => 
+    Array.from({ length: 91 }, (_, i) => 2010 + i).sort((a, b) => b - a), []
+  );
+
 
   return (
     <div className="bg-white/5 backdrop-blur-lg p-3 sm:p-4 lg:p-6 rounded-xl sm:rounded-2xl shadow-2xl border border-white/10">
@@ -47,41 +51,199 @@ export default function TradingCalendar({
           <span className="sm:hidden">Calendar</span>
         </h2>
         
-        {/* Month & Year Navigation */}
-        <div className="flex items-center justify-center gap-3">
-          <button
-            onClick={() => {
-              if (selectedMonth === 0) {
-                setSelectedMonth(11);
-                setSelectedYear(prev => prev - 1);
-              } else setSelectedMonth(prev => prev - 1);
-            }}
-            className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-            </svg>
-          </button>
+        {/* Combined Month & Year Navigation - Responsive */}
+        <div className="mb-4">
+          {/* Desktop Layout - Single Row */}
+          <div className="hidden sm:flex items-center justify-between gap-4">
+            {/* Month Navigation - Left Side */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  if (selectedMonth === 0) {
+                    setSelectedMonth(11);
+                    setSelectedYear(prev => prev - 1);
+                  } else setSelectedMonth(prev => prev - 1);
+                }}
+                className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              </button>
 
-          <div className="text-center px-4">
-            <div className="text-base sm:text-lg font-bold text-white">
-              {new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' })} {selectedYear}
+              <div className="text-center px-4">
+                <div className="text-lg font-bold text-white">
+                  {new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' })}
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  if (selectedMonth === 11) {
+                    setSelectedMonth(0);
+                    setSelectedYear(prev => prev + 1);
+                  } else setSelectedMonth(prev => prev + 1);
+                }}
+                className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Year Selector - Right Side */}
+            <div className="flex items-center gap-3">
+              {/* Current Year Quick Access */}
+              <button
+                onClick={() => {
+                  const currentYear = new Date().getFullYear();
+                  setSelectedYear(currentYear);
+                  setSelectedMonth(new Date().getMonth());
+                }}
+                className="px-3 py-1.5 text-xs font-medium bg-green-500/20 text-green-300 hover:bg-green-500/30 rounded-lg transition-all duration-200 border border-green-500/30"
+              >
+                📅 Today
+              </button>
+
+              {/* Year Input Field */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400 font-medium">Year:</span>
+                <input
+                  type="number"
+                  min="2010"
+                  max="2100"
+                  value={selectedYear}
+                  onChange={(e) => {
+                    const year = parseInt(e.target.value);
+                    if (year >= 2010 && year <= 2100) {
+                      setSelectedYear(year);
+                    }
+                  }}
+                  className="bg-white/10 border border-white/20 rounded-lg px-3 py-1.5 text-sm text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all w-20 text-center"
+                  placeholder="2024"
+                />
+              </div>
+
+              {/* Year Navigation Arrows */}
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setSelectedYear(Math.max(2010, selectedYear - 1))}
+                  className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200"
+                  disabled={selectedYear <= 2010}
+                >
+                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setSelectedYear(Math.min(2100, selectedYear + 1))}
+                  className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200"
+                  disabled={selectedYear >= 2100}
+                >
+                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
 
-          <button
-            onClick={() => {
-              if (selectedMonth === 11) {
-                setSelectedMonth(0);
-                setSelectedYear(prev => prev + 1);
-              } else setSelectedMonth(prev => prev + 1);
-            }}
-            className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-            </svg>
-          </button>
+          {/* Mobile Layout - Stacked */}
+          <div className="flex sm:hidden flex-col gap-4">
+            {/* Month Navigation */}
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={() => {
+                  if (selectedMonth === 0) {
+                    setSelectedMonth(11);
+                    setSelectedYear(prev => prev - 1);
+                  } else setSelectedMonth(prev => prev - 1);
+                }}
+                className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              </button>
+
+              <div className="text-center px-4">
+                <div className="text-base font-bold text-white">
+                  {new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' })}
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  if (selectedMonth === 11) {
+                    setSelectedMonth(0);
+                    setSelectedYear(prev => prev + 1);
+                  } else setSelectedMonth(prev => prev + 1);
+                }}
+                className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Year Selector */}
+            <div className="flex items-center justify-center gap-2 flex-wrap">
+              {/* Current Year Quick Access */}
+              <button
+                onClick={() => {
+                  const currentYear = new Date().getFullYear();
+                  setSelectedYear(currentYear);
+                  setSelectedMonth(new Date().getMonth());
+                }}
+                className="px-2 py-1.5 text-xs font-medium bg-green-500/20 text-green-300 hover:bg-green-500/30 rounded-lg transition-all duration-200 border border-green-500/30"
+              >
+                📅 Today
+              </button>
+
+              {/* Year Input Field */}
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-gray-400 font-medium">Year:</span>
+                <input
+                  type="number"
+                  min="2010"
+                  max="2100"
+                  value={selectedYear}
+                  onChange={(e) => {
+                    const year = parseInt(e.target.value);
+                    if (year >= 2010 && year <= 2100) {
+                      setSelectedYear(year);
+                    }
+                  }}
+                  className="bg-white/10 border border-white/20 rounded-lg px-2 py-1.5 text-xs text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all w-16 text-center"
+                  placeholder="2024"
+                />
+              </div>
+
+              {/* Year Navigation Arrows */}
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setSelectedYear(Math.max(2010, selectedYear - 1))}
+                  className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200"
+                  disabled={selectedYear <= 2010}
+                >
+                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setSelectedYear(Math.min(2100, selectedYear + 1))}
+                  className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200"
+                  disabled={selectedYear >= 2100}
+                >
+                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
