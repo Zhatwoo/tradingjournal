@@ -1,7 +1,7 @@
 // components/AddTradeModal.jsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   calculateTradeProfitLoss, 
   calculatePipValue, 
@@ -81,15 +81,25 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
     }
   };
 
-  // Calculate position size and other metrics using forex formulas
-  const calculateMetrics = () => {
+  // Real-time metrics calculation using useMemo for performance
+  const metrics = useMemo(() => {
     const entry = Number(formData.entry) || 0;
     const exit = Number(formData.exit) || 0;
     const lotSize = Number(formData.lotSize) || 0;
     const symbol = formData.symbol || '';
     
     if (!symbol || !entry || !exit || !lotSize) {
-      return { profit: 0, positionSize: 0, pips: 0, riskAmount: 0, pipValue: 0 };
+      return { 
+        profit: 0, 
+        positionSize: 0, 
+        pips: 0, 
+        riskAmount: 0, 
+        pipValue: 0,
+        riskRewardRatio: 0,
+        riskPercentage: 0,
+        potentialProfit: 0,
+        potentialLoss: 0
+      };
     }
     
     // Calculate profit/loss using forex formulas
@@ -108,10 +118,26 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
     // Calculate risk amount if stop loss is provided
     const riskAmount = stopLossPips ? calculateRiskAmount(symbol, lotSize, Number(stopLossPips), accountType, entry) : 0;
     
-    return { profit, positionSize, pips, riskAmount, pipValue };
-  };
-
-  const metrics = calculateMetrics();
+    // Calculate additional metrics
+    const riskRewardRatio = riskAmount > 0 ? Math.abs(profit) / riskAmount : 0;
+    const riskPercentage = riskAmount > 0 ? (riskAmount / positionSize) * 100 : 0;
+    
+    // Calculate potential profit/loss scenarios
+    const potentialProfit = pipValue * pips;
+    const potentialLoss = stopLossPips ? pipValue * Number(stopLossPips) : 0;
+    
+    return { 
+      profit, 
+      positionSize, 
+      pips, 
+      riskAmount, 
+      pipValue,
+      riskRewardRatio,
+      riskPercentage,
+      potentialProfit,
+      potentialLoss
+    };
+  }, [formData.entry, formData.exit, formData.lotSize, formData.symbol, accountType, tradeDirection, stopLossPips]);
 
   if (!showModal) return null;
 
@@ -257,10 +283,15 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
             </div>
           </div>
 
-          {/* Calculated Metrics Display */}
+          {/* Real-time Calculated Metrics Display */}
           <div className="bg-gray-700/50 p-4 rounded-lg border border-gray-600">
-            <h3 className="text-sm font-semibold text-gray-300 mb-3">Forex Trade Calculations</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <h3 className="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              Real-time Trade Calculations
+            </h3>
+            
+            {/* Primary Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               <div className="text-center">
                 <p className="text-xs text-gray-400">Profit/Loss (USD)</p>
                 <p className={`text-lg font-bold ${metrics.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -286,6 +317,32 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
                 </p>
               </div>
             </div>
+
+            {/* Risk Management Metrics */}
+            {stopLossPips && (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-600/50">
+                <div className="text-center">
+                  <p className="text-xs text-gray-400">Risk Amount</p>
+                  <p className="text-lg font-bold text-red-400">
+                    ${metrics.riskAmount.toFixed(2)}
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-400">Risk/Reward Ratio</p>
+                  <p className={`text-lg font-bold ${metrics.riskRewardRatio >= 1 ? 'text-green-400' : 'text-yellow-400'}`}>
+                    1:{metrics.riskRewardRatio.toFixed(2)}
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-400">Risk %</p>
+                  <p className={`text-lg font-bold ${metrics.riskPercentage <= 2 ? 'text-green-400' : metrics.riskPercentage <= 5 ? 'text-yellow-400' : 'text-red-400'}`}>
+                    {metrics.riskPercentage.toFixed(1)}%
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Trade Information */}
             <div className="mt-3 pt-3 border-t border-gray-600">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
                 <div>
@@ -304,6 +361,35 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
                 </div>
               </div>
             </div>
+
+            {/* Risk Assessment */}
+            {stopLossPips && (
+              <div className="mt-3 pt-3 border-t border-gray-600">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400">Risk Assessment:</span>
+                  <div className="flex items-center gap-2">
+                    {metrics.riskPercentage <= 2 ? (
+                      <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs font-medium border border-green-500/30">
+                        ✅ Low Risk
+                      </span>
+                    ) : metrics.riskPercentage <= 5 ? (
+                      <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded text-xs font-medium border border-yellow-500/30">
+                        ⚠️ Medium Risk
+                      </span>
+                    ) : (
+                      <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs font-medium border border-red-500/30">
+                        🚨 High Risk
+                      </span>
+                    )}
+                    {metrics.riskRewardRatio >= 2 && (
+                      <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs font-medium border border-blue-500/30">
+                        🎯 Good R/R
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Notes */}
