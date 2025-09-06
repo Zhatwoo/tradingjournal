@@ -130,10 +130,12 @@ export default function TradingCalendar({
                   setSelectedDate(clickedDate);
                   
                   if (dayTrades.length > 0) {
+                    // Show options for days with existing trades
                     setSelectedDayTrades(dayTrades);
                     setSelectedDay(day);
-                    setIsModalOpen(true);
+                    setIsDayOptionsModalOpen(true);
                   } else {
+                    // Show options for days with no trades
                     setIsDayOptionsModalOpen(true);
                   }
                 }}

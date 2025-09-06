@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { auth } from "../lib/firebase";
-import { Home, PlusCircle, List, BookOpen, Settings, Menu, X, LogOut } from "lucide-react";
+import { Home, PlusCircle, List, BookOpen, Settings, Menu, X, LogOut, BarChart3, User } from "lucide-react";
 
 export default function Sidebar({ 
   username = "Trader", 
@@ -29,7 +29,9 @@ export default function Sidebar({
       'dashboard': 'Dashboard',
       'addtrade': 'Add Trade',
       'tradehistory': 'Trade History',
+      'overallperf': 'Overall Performance',
       'tradingschool': 'Learn to Trade',
+      'about': 'About',
       'setting': 'Settings'
     };
     
@@ -41,7 +43,9 @@ export default function Sidebar({
     { name: "Dashboard", icon: <Home size={20} />, href: "/dashboard" },
     { name: "Add Trade", icon: <PlusCircle size={20} />, href: "/addtrade" },
     { name: "Trade History", icon: <List size={20} />, href: "/tradehistory" },
+    { name: "Overall Performance", icon: <BarChart3 size={20} />, href: "/overallperf" },
     { name: "Learn to Trade", icon: <BookOpen size={20} />, href: "/tradingschool" },
+    { name: "About", icon: <User size={20} />, href: "/about" },
     { name: "Settings", icon: <Settings size={20} />, href: "/setting" },
   ];
 

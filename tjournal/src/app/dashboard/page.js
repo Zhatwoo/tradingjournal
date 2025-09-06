@@ -781,7 +781,7 @@ export default function Dashboard() {
               <div className="bg-gray-800/95 backdrop-blur-md p-4 sm:p-6 rounded-xl shadow-2xl border border-gray-700/50 w-full max-w-md">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg font-semibold text-white">
-                    Add Trade for {selectedDate.toLocaleDateString('en-US', { 
+                    {selectedDayTrades.length > 0 ? 'Manage Trades for' : 'Add Trade for'} {selectedDate.toLocaleDateString('en-US', { 
                       weekday: 'long', 
                       year: 'numeric', 
                       month: 'long', 
@@ -789,7 +789,11 @@ export default function Dashboard() {
                     })}
                   </h3>
                   <button
-                    onClick={() => setIsDayOptionsModalOpen(false)}
+                    onClick={() => {
+                      setIsDayOptionsModalOpen(false);
+                      setSelectedDayTrades([]);
+                      setSelectedDay(null);
+                    }}
                     className="text-gray-400 hover:text-white transition-colors duration-200 p-1"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -799,31 +803,73 @@ export default function Dashboard() {
                 </div>
                 
                 <div className="space-y-4">
-                  <p className="text-gray-300 text-sm">
-                    This day has no trades yet. Would you like to add a trade for this date?
-                  </p>
+                  {selectedDayTrades.length > 0 ? (
+                    <>
+                      <div className="bg-gray-700/30 rounded-lg p-3 mb-4">
+                        <p className="text-gray-300 text-sm mb-2">
+                          This day has <span className="font-semibold text-white">{selectedDayTrades.length}</span> trade{selectedDayTrades.length > 1 ? 's' : ''}:
+                        </p>
+                        <div className="text-xs text-gray-400 space-y-1">
+                          {selectedDayTrades.map((trade, index) => (
+                            <div key={index} className="flex justify-between">
+                              <span>{trade.symbol}</span>
+                              <span className={trade.profit >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                {trade.profit >= 0 ? '+' : ''}${trade.profit}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-gray-300 text-sm">
+                        What would you like to do?
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-gray-300 text-sm">
+                      This day has no trades yet. Would you like to add a trade for this date?
+                    </p>
+                  )}
                   
-                  <div className="flex gap-3">
+                  <div className="space-y-3">
+                    {selectedDayTrades.length > 0 && (
+                      <button
+                        onClick={() => {
+                          setIsDayOptionsModalOpen(false);
+                          setIsModalOpen(true);
+                        }}
+                        className="w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        View Existing Trades
+                      </button>
+                    )}
+                    
                     <button
                       onClick={() => {
                         setIsDayOptionsModalOpen(false);
                         setShowModal(true);
                       }}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2"
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
                       </svg>
-                      Add Trade
-                    </button>
-                    
-                    <button
-                      onClick={() => setIsDayOptionsModalOpen(false)}
-                      className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors duration-200"
-                    >
-                      Cancel
+                      {selectedDayTrades.length > 0 ? 'Add Another Trade' : 'Add Trade'}
                     </button>
                   </div>
+                  
+                  <button
+                    onClick={() => {
+                      setIsDayOptionsModalOpen(false);
+                      setSelectedDayTrades([]);
+                      setSelectedDay(null);
+                    }}
+                    className="w-full px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors duration-200"
+                  >
+                    Cancel
+                  </button>
                 </div>
               </div>
             </div>
@@ -981,7 +1027,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <Footer />
+      <Footer 
+        sidebarOpen={sidebarOpen} 
+        isMobile={isMobile} 
+      />
 
              <style jsx global>{`
          @keyframes blob {
