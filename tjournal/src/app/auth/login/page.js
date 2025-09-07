@@ -107,7 +107,7 @@ export default function LoginPage() {
               <input type="checkbox" className="rounded bg-gray-800/60 border-gray-700 text-blue-500 focus:ring-blue-500/50 mr-2" />
               Remember me
             </label>
-            <Link href="#" className="text-blue-400 hover:text-blue-300 transition-colors">
+            <Link href="/forgot-password" className="text-blue-400 hover:text-blue-300 transition-colors">
               Forgot password?
             </Link>
           </div>
@@ -150,7 +150,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <div className="text-center text-gray-500 text-xs mt-6 sm:mt-8">
-          <p>By signing in, you agree to our <a href="#" className="text-blue-400 hover:text-blue-300">Terms of Service</a> and <a href="#" className="text-blue-400 hover:text-blue-300">Privacy Policy</a></p>
+          <p>By signing in, you agree to our <a href="/terms" className="text-blue-400 hover:text-blue-300">Terms of Service</a> and <a href="/privacy" className="text-blue-400 hover:text-blue-300">Privacy Policy</a></p>
         </div>
       </div>
     </div>

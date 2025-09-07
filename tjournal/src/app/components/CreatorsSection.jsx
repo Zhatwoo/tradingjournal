@@ -42,11 +42,11 @@ export default function CreatorsSection() {
                           alt="Neo Dela Torre" 
                           className="w-full h-full object-cover rounded-full"
                           onError={(e) => {
-                            console.log('Image failed to load:', e.target.src);
+                            // Image failed to load, using fallback
                             e.target.style.display = 'none';
                             e.target.nextSibling.style.display = 'flex';
                           }}
-                          onLoad={() => console.log('Image loaded successfully')}
+                          onLoad={() => {}}
                         />
                         <div className="w-24 h-24 md:w-32 md:h-32 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center" style={{display: 'none'}}>
                           <span className="text-2xl md:text-3xl font-bold text-white">ND</span>
@@ -82,28 +82,34 @@ export default function CreatorsSection() {
                   {/* Social Links */}
                   <div className="flex items-center justify-center lg:justify-start gap-4">
                     <a 
-                      href="#" 
+                      href="https://github.com/tjournal-app" 
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="p-3 bg-gray-800/50 hover:bg-blue-500/20 rounded-xl border border-gray-700/50 hover:border-blue-500/50 transition-all duration-300 group"
                       title="GitHub"
                     >
                       <Github className="w-5 h-5 text-gray-400 group-hover:text-blue-400 transition-colors duration-300" />
                     </a>
                     <a 
-                      href="#" 
+                      href="https://linkedin.com/company/tjournal" 
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="p-3 bg-gray-800/50 hover:bg-blue-600/20 rounded-xl border border-gray-700/50 hover:border-blue-600/50 transition-all duration-300 group"
                       title="LinkedIn"
                     >
                       <Linkedin className="w-5 h-5 text-gray-400 group-hover:text-blue-500 transition-colors duration-300" />
                     </a>
                     <a 
-                      href="#" 
+                      href="mailto:contact@tjournal.com" 
                       className="p-3 bg-gray-800/50 hover:bg-purple-500/20 rounded-xl border border-gray-700/50 hover:border-purple-500/50 transition-all duration-300 group"
                       title="Email"
                     >
                       <Mail className="w-5 h-5 text-gray-400 group-hover:text-purple-400 transition-colors duration-300" />
                     </a>
                     <a 
-                      href="#" 
+                      href="https://tjournal.com" 
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="p-3 bg-gray-800/50 hover:bg-green-500/20 rounded-xl border border-gray-700/50 hover:border-green-500/50 transition-all duration-300 group"
                       title="Portfolio"
                     >

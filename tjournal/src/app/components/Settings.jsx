@@ -474,6 +474,10 @@ export default function Settings() {
                       <option value="Europe/Madrid">Madrid (CET/CEST)</option>
                       <option value="Europe/Moscow">Moscow (MSK)</option>
                     </optgroup>
+                    <optgroup label="Philippines">
+                      <option value="Asia/Manila">Manila (PST/PDT)</option>
+                      <option value="UTC+8">UTC+8 (Philippine Standard Time)</option>
+                    </optgroup>
                     <optgroup label="Asia">
                       <option value="Asia/Tokyo">Tokyo (JST)</option>
                       <option value="Asia/Shanghai">Shanghai (CST)</option>

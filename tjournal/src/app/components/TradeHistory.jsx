@@ -33,7 +33,7 @@ export default function TradeHistory({
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [timeFilter, setTimeFilter] = useState('all'); // all, today, yesterday, thisWeek
   const [sortBy, setSortBy] = useState('datetime'); // date, profit, symbol, time, uploadTime, datetime
-  const [sortOrder, setSortOrder] = useState('desc'); // asc, desc
+  const [sortOrder, setSortOrder] = useState('desc'); // asc, desc - Always default to newest first
   const [currentPage, setCurrentPage] = useState(1);
   const [tradesPerPage] = useState(10); // Number of trades per page
   const [showMetrics, setShowMetrics] = useState(false); // Toggle metrics section
@@ -90,18 +90,23 @@ export default function TradeHistory({
 
   // Get unique strategies
   const strategies = useMemo(() => {
-    const strategyList = trades.map(t => t.strategy || "Unknown").filter(Boolean);
+    if (!trades || !Array.isArray(trades)) return ["all"];
+    const strategyList = trades.map(t => t?.strategy || "Unknown").filter(Boolean);
     return ["all", ...Array.from(new Set(strategyList))];
   }, [trades]);
 
   // Filter and sort trades
-  const filteredAndSortedTrades = trades
-    .filter(trade => {
-      const matchesSymbol = trade.symbol.toLowerCase().includes(filterSymbol.toLowerCase());
-      const matchesProfit = filterProfit === 'all' || 
-        (filterProfit === 'profit' && trade.profit > 0) ||
-        (filterProfit === 'loss' && trade.profit < 0);
-      const matchesStrategy = filterStrategy === 'all' || trade.strategy === filterStrategy;
+  const filteredAndSortedTrades = useMemo(() => {
+    if (!trades || !Array.isArray(trades)) return [];
+    
+    return trades
+      .filter(trade => {
+        if (!trade) return false;
+        const matchesSymbol = trade.symbol?.toLowerCase().includes(filterSymbol.toLowerCase()) ?? false;
+        const matchesProfit = filterProfit === 'all' || 
+          (filterProfit === 'profit' && (trade.profit || 0) > 0) ||
+          (filterProfit === 'loss' && (trade.profit || 0) < 0);
+        const matchesStrategy = filterStrategy === 'all' || trade.strategy === filterStrategy;
       
       // Date range filtering (User's Preferred Timezone)
       let matchesDate = true;
@@ -138,39 +143,42 @@ export default function TradeHistory({
       return matchesSymbol && matchesProfit && matchesStrategy && matchesDate && matchesTime;
     })
     .sort((a, b) => {
+      if (!a || !b) return 0;
       let aValue, bValue;
       
       switch (sortBy) {
         case 'date':
-          aValue = getUserDateString(new Date(a.createdAt || a.date));
-          bValue = getUserDateString(new Date(b.createdAt || b.date));
+          // Sort by date only (YYYY-MM-DD format)
+          aValue = getUserDateString(new Date(a.createdAt || a.date || 0));
+          bValue = getUserDateString(new Date(b.createdAt || b.date || 0));
           break;
         case 'time':
         case 'uploadTime':
-          // Sort by full timestamp (most recent first by default)
-          // Uses timezone-aware timestamps for accurate sorting
-          aValue = new Date(a.createdAt || a.date).getTime();
-          bValue = new Date(b.createdAt || b.date).getTime();
-          break;
         case 'datetime':
-          // Sort by full timestamp including time (most recent first by default)
+          // Sort by full timestamp including time (upload date and time)
           // Uses timezone-aware timestamps for accurate sorting
-          aValue = new Date(a.createdAt || a.date).getTime();
-          bValue = new Date(b.createdAt || b.date).getTime();
+          // Prioritizes createdAt (upload time) over date (trade date)
+          aValue = new Date(a.createdAt || a.date || 0).getTime();
+          bValue = new Date(b.createdAt || b.date || 0).getTime();
           break;
         case 'profit':
-          aValue = a.profit;
-          bValue = b.profit;
+          aValue = a.profit || 0;
+          bValue = b.profit || 0;
           break;
         case 'symbol':
-          aValue = a.symbol.toLowerCase();
-          bValue = b.symbol.toLowerCase();
+          aValue = (a.symbol || '').toLowerCase();
+          bValue = (b.symbol || '').toLowerCase();
           break;
         default:
-          // Default to time-based sorting (most recent first)
+          // Default to upload time sorting (most recent first)
           // Uses timezone-aware timestamps for accurate sorting
-          aValue = new Date(a.createdAt || a.date).getTime();
-          bValue = new Date(b.createdAt || b.date).getTime();
+          aValue = new Date(a.createdAt || a.date || 0).getTime();
+          bValue = new Date(b.createdAt || b.date || 0).getTime();
+      }
+
+      // Always default to descending order (newest first) for time-based sorts
+      if (sortBy === 'datetime' || sortBy === 'time' || sortBy === 'uploadTime' || sortBy === 'date') {
+        return bValue > aValue ? 1 : -1; // Newest first
       }
 
       if (sortOrder === 'asc') {
@@ -179,6 +187,7 @@ export default function TradeHistory({
         return aValue < bValue ? 1 : -1;
       }
     });
+  }, [trades, filterSymbol, filterProfit, filterStrategy, dateRange, timeFilter, sortBy, sortOrder]);
 
   // Pagination logic
   const totalTrades = filteredAndSortedTrades.length;
@@ -236,7 +245,7 @@ export default function TradeHistory({
     let peak = 0;
     let maxDD = 0;
     filtered
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) // Use timezone-aware timestamps
+      .sort((a, b) => new Date(a.createdAt || a.date).getTime() - new Date(b.createdAt || b.date).getTime()) // Use upload time for chronological order
       .forEach(t => {
         equity += t.profit;
         if (equity > peak) peak = equity;
@@ -251,7 +260,7 @@ export default function TradeHistory({
     let currentLosses = 0;
     
     filtered
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) // Use timezone-aware timestamps
+      .sort((a, b) => new Date(a.createdAt || a.date).getTime() - new Date(b.createdAt || b.date).getTime()) // Use upload time for chronological order
       .forEach(t => {
         if (t.profit > 0) {
           currentWins++;

@@ -141,7 +141,6 @@ export default function TradeHistoryPage() {
     setDeleteLoading(true);
     try {
       await deleteDoc(doc(db, "trades1", tradeToDelete.id));
-      console.log("Trade deleted successfully");
       setDeleteModalOpen(false);
       setTradeToDelete(null);
     } catch (error) {
