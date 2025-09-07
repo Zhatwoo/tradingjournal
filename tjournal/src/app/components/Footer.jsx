@@ -113,14 +113,18 @@ export default function Footer({
             {/* Social Links */}
             <div className="flex items-center gap-3 sm:gap-4">
               <a 
-                href="#" 
+                href="https://github.com/tjournal-app" 
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-gray-400 hover:text-blue-400 transition-colors duration-200"
                 aria-label="GitHub"
               >
                 <Github className="h-5 w-5" />
               </a>
               <a 
-                href="#" 
+                href="https://twitter.com/tjournal_app" 
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-gray-400 hover:text-blue-400 transition-colors duration-200"
                 aria-label="Twitter"
               >

@@ -144,9 +144,7 @@ export default function AddTradePage() {
         date: dataToSubmit.deviceTimeTimestamp || createDateTimeFromDeviceTime(new Date()), // Use device time with current date
       };
 
-      console.log("Adding trade from addtrade page:", tradeData);
       await addDoc(collection(db, "trades1"), tradeData);
-      console.log("Trade added successfully from addtrade page");
 
       setFormData({ symbol: "", entry: "", exit: "", lotSize: "", profit: "", riskAmount: "", notes: "", image: null, accountType: "STANDARD", tradeDirection: "BUY", stopLossPips: "" });
       setImagePreview(null);

@@ -279,9 +279,7 @@ export default function Dashboard() {
         date: dataToSubmit.deviceTimeTimestamp || createDateTimeFromDeviceTime(new Date()), // Use device time with current date
       };
 
-      console.log("Adding trade:", tradeData);
       await addDoc(collection(db, "trades1"), tradeData);
-      console.log("Trade added successfully");
 
       // Show success message
       setTradeAdditionMessage({ type: 'success', text: 'Trade added successfully!' });
@@ -334,9 +332,7 @@ export default function Dashboard() {
         date: dataToSubmit.deviceTimeTimestamp || createDateTimeFromDeviceTime(selectedDate), // Use device time with selected date from calendar
       };
 
-      console.log("Adding trade for date:", tradeData);
       await addDoc(collection(db, "trades1"), tradeData);
-      console.log("Trade added successfully for selected date");
 
       // Show success message
       setTradeAdditionMessage({ type: 'success', text: 'Trade added successfully!' });
@@ -377,7 +373,6 @@ export default function Dashboard() {
     setDeleteLoading(true);
     try {
       await deleteDoc(doc(db, "trades1", tradeToDelete.id));
-      console.log("Trade deleted successfully");
       setDeleteModalOpen(false);
       setTradeToDelete(null);
     } catch (error) {
@@ -461,7 +456,6 @@ export default function Dashboard() {
       };
       
       await setDoc(doc(db, "userSettings", user.uid), userSettings);
-      console.log("User settings saved successfully");
     } catch (error) {
       console.error("Error saving user settings:", error);
     }
@@ -479,10 +473,8 @@ export default function Dashboard() {
         setMetricsStartDate(settings.metricsStartDate || getDefaultDateRange().start);
         setMetricsEndDate(settings.metricsEndDate || getDefaultDateRange().end);
         setSelectedDuration(settings.selectedDuration || '30D');
-        console.log("User settings loaded successfully");
       } else {
         // No settings exist, use smart defaults
-        console.log("No user settings found, using smart defaults");
         const smartRange = getSmartDateRange();
         setMetricsStartDate(smartRange.start);
         setMetricsEndDate(smartRange.end);
@@ -676,12 +668,23 @@ export default function Dashboard() {
   // -----------------------------
   // Optimize trade filtering with useMemo to prevent unnecessary recalculations
   const filteredTrades = useMemo(() => {
-    return recentTrades.filter(trade => {
-      const tradeDate = new Date(trade.date);
-      const startDate = new Date(metricsStartDate);
-      const endDate = new Date(metricsEndDate);
-      return tradeDate >= startDate && tradeDate <= endDate;
-    });
+    if (!recentTrades || !Array.isArray(recentTrades)) return [];
+    
+    return recentTrades
+      .filter(trade => {
+        if (!trade || !trade.date) return false;
+        const tradeDate = new Date(trade.date);
+        const startDate = new Date(metricsStartDate);
+        const endDate = new Date(metricsEndDate);
+        return tradeDate >= startDate && tradeDate <= endDate;
+      })
+      .sort((a, b) => {
+        // Ensure trades are always sorted by upload time (newest first)
+        // Uses createdAt (upload time) if available, otherwise falls back to date
+        const aTime = new Date(a?.createdAt || a?.date || 0).getTime();
+        const bTime = new Date(b?.createdAt || b?.date || 0).getTime();
+        return bTime - aTime; // Newest first
+      });
   }, [recentTrades, metricsStartDate, metricsEndDate]);
   
   // Optimize calculations with useMemo
@@ -717,18 +720,28 @@ export default function Dashboard() {
   
   // Calculate best and worst days (using filtered trades) - optimized
   const { bestDay, worstDay } = useMemo(() => {
+    if (!filteredTrades || filteredTrades.length === 0) {
+      return { bestDay: { date: '', pnl: 0 }, worstDay: { date: '', pnl: 0 } };
+    }
+    
     const dailyPnLs = filteredTrades.reduce((acc, trade) => {
+      if (!trade || !trade.date) return acc;
       const date = new Date(trade.date).toLocaleDateString();
       if (!acc[date]) acc[date] = 0;
       acc[date] += trade.profit || 0;
       return acc;
     }, {});
     
-    const best = Object.entries(dailyPnLs).reduce((best, [date, pnl]) => 
+    const entries = Object.entries(dailyPnLs);
+    if (entries.length === 0) {
+      return { bestDay: { date: '', pnl: 0 }, worstDay: { date: '', pnl: 0 } };
+    }
+    
+    const best = entries.reduce((best, [date, pnl]) => 
       pnl > best.pnl ? { date, pnl } : best, { date: '', pnl: -Infinity }
     );
     
-    const worst = Object.entries(dailyPnLs).reduce((worst, [date, pnl]) => 
+    const worst = entries.reduce((worst, [date, pnl]) => 
       pnl < worst.pnl ? { date, pnl } : worst, { date: '', pnl: Infinity }
     );
     
@@ -737,11 +750,20 @@ export default function Dashboard() {
   
   // Calculate drawdown (maximum loss from peak) - optimized
   const { peakBalance, currentDrawdown, maxDrawdown } = useMemo(() => {
+    if (!sortedTrades || sortedTrades.length === 0) {
+      return { peakBalance: startingBalance, currentDrawdown: 0, maxDrawdown: 0 };
+    }
+    
     const runningBalances = sortedTrades.reduce((acc, t, i) => {
+      if (!t) return acc;
       const previousBalance = acc[i - 1] || startingBalance;
       const newBalance = previousBalance + (t.profit || 0);
       return [...acc, newBalance];
     }, []);
+    
+    if (runningBalances.length === 0) {
+      return { peakBalance: startingBalance, currentDrawdown: 0, maxDrawdown: 0 };
+    }
     
     const peak = Math.max(...runningBalances, startingBalance);
     const current = peak - currentBalance;

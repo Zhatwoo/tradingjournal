@@ -180,7 +180,7 @@ export default function RegisterPage() {
               className="mt-1 rounded bg-gray-800/60 border-gray-700 text-blue-500 focus:ring-blue-500/50 mr-2 sm:mr-3" 
             />
             <label htmlFor="terms" className="text-gray-400 leading-relaxed">
-              I agree to the <a href="#" className="text-blue-400 hover:text-blue-300">Terms of Service</a> and <a href="#" className="text-blue-400 hover:text-blue-300">Privacy Policy</a>
+              I agree to the <a href="/terms" className="text-blue-400 hover:text-blue-300">Terms of Service</a> and <a href="/privacy" className="text-blue-400 hover:text-blue-300">Privacy Policy</a>
             </label>
           </div>
 
