@@ -4,8 +4,11 @@ import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { User, Settings, Lightbulb, PlusCircle, Move } from "lucide-react";
 
-export default function DashboardHeader({ username = "Trader", balance = 12500, dailyPnL = 320 }) {
+export default function DashboardHeader({ username = "Trader", displayName = null, balance = 12500, dailyPnL = 320 }) {
   const router = useRouter();
+  
+  // Use displayName if available, otherwise fall back to username
+  const displayUsername = displayName || username;
   const [position, setPosition] = useState({ x: 0, y: 16 }); // Default centered position
   const [originalPosition, setOriginalPosition] = useState({ x: 0, y: 16 }); // Store original position
   const [isDragging, setIsDragging] = useState(false);
@@ -201,11 +204,11 @@ export default function DashboardHeader({ username = "Trader", balance = 12500, 
                 <div className="flex items-center gap-1 sm:gap-2">
                   <Move className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 text-gray-400 opacity-50" />
                   <div className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm sm:text-base md:text-lg">
-                    {username[0].toUpperCase()}
+                    {displayUsername[0].toUpperCase()}
                   </div>
                 </div>
                 <div className="flex flex-col min-w-0">
-                  <span className="font-medium text-xs sm:text-sm md:text-base truncate">{username}</span>
+                  <span className="font-medium text-xs sm:text-sm md:text-base truncate">{displayUsername}</span>
                   <span className="text-gray-400 text-[10px] sm:text-xs md:text-sm">Trader</span>
                 </div>
               </div>
@@ -234,11 +237,11 @@ export default function DashboardHeader({ username = "Trader", balance = 12500, 
             <div className="flex items-center gap-2 xl:gap-3">
               <Move className="w-4 h-4 xl:w-5 xl:h-5 text-gray-400 opacity-50" />
               <div className="w-10 h-10 xl:w-12 xl:h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-base xl:text-lg">
-                {username[0].toUpperCase()}
+                {displayUsername[0].toUpperCase()}
               </div>
             </div>
             <div className="flex flex-col">
-              <span className="font-medium text-sm xl:text-base">{username}</span>
+              <span className="font-medium text-sm xl:text-base">{displayUsername}</span>
               <span className="text-gray-400 text-xs xl:text-sm">Trader</span>
             </div>
             {returnTimeout && (

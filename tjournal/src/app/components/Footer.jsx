@@ -5,21 +5,24 @@ import { Heart, Github, Twitter, Mail } from "lucide-react";
 
 export default function Footer({ 
   sidebarOpen = false, 
-  isMobile = false 
+  isMobile = false,
+  hasSidebar = true 
 }) {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className={`bg-gray-900/95 backdrop-blur-md text-gray-400 border-t border-gray-700/50 transition-all duration-300 ${
-      sidebarOpen && !isMobile ? 'lg:ml-64' : 'lg:ml-16'
-    } ml-0`}>
+    <footer className={`bg-gray-900/95 backdrop-blur-md text-gray-400 border-t border-gray-700/50 transition-all duration-300 w-full ${
+      hasSidebar 
+        ? (sidebarOpen && !isMobile ? 'lg:ml-64' : 'lg:ml-16')
+        : 'ml-0'
+    }`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Main Footer Content */}
         <div className="py-8 sm:py-12">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
             
             {/* Brand Section */}
-            <div className="lg:col-span-2">
+            <div className="sm:col-span-2 lg:col-span-2">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center font-semibold text-white text-lg">
                   T
@@ -100,15 +103,15 @@ export default function Footer({
         </div>
 
         {/* Bottom Section */}
-        <div className="py-6 border-t border-gray-700/50">
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div className="py-4 sm:py-6 border-t border-gray-700/50">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-4">
             {/* Copyright */}
             <div className="text-sm text-gray-500">
               &copy; {currentYear} TJournal. All rights reserved.
             </div>
 
             {/* Social Links */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
               <a 
                 href="#" 
                 className="text-gray-400 hover:text-blue-400 transition-colors duration-200"

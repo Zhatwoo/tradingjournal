@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ArrowLeft, BookOpen, Play, Users, Award, TrendingUp, Target, Shield, Clock, Star } from "lucide-react";
 import Link from "next/link";
+import Footer from './Footer';
 
 export default function LearnToTrade() {
   const [selectedCategory, setSelectedCategory] = useState('basics');
@@ -327,6 +328,9 @@ export default function LearnToTrade() {
           </div>
         </div>
       </section>
+
+      {/* Footer */}
+      <Footer hasSidebar={false} />
     </div>
   );
 }

@@ -43,6 +43,8 @@ export default function Dashboard() {
   // STATE VARIABLES
   // -----------------------------
   const [user, setUser] = useState(null);
+  const [userSettings, setUserSettings] = useState(null);
+  const [userDisplayName, setUserDisplayName] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [windowWidth, setWindowWidth] = useState(0);
@@ -54,6 +56,7 @@ export default function Dashboard() {
     exit: "",
     lotSize: "",
     profit: "",
+    riskAmount: "",
     notes: "",
     image: null,
     accountType: "STANDARD",
@@ -146,6 +149,7 @@ export default function Dashboard() {
         setUser(currentUser);
         // Load user settings when user logs in
         loadUserSettings();
+        loadUserPreferences();
       }
     });
     return unsubscribe;
@@ -284,7 +288,7 @@ export default function Dashboard() {
       setTimeout(() => setTradeAdditionMessage(null), 3000);
 
       // Clear form data and close modal
-      setFormData({ symbol: "", entry: "", exit: "", lotSize: "", profit: "", notes: "", image: null, accountType: "STANDARD", tradeDirection: "BUY", stopLossPips: "" });
+      setFormData({ symbol: "", entry: "", exit: "", lotSize: "", profit: "", riskAmount: "", notes: "", image: null, accountType: "STANDARD", tradeDirection: "BUY", stopLossPips: "" });
       setImagePreview(null);
       setShowModal(false);
       
@@ -339,7 +343,7 @@ export default function Dashboard() {
       setTimeout(() => setTradeAdditionMessage(null), 3000);
 
       // Clear form data and close modals
-      setFormData({ symbol: "", entry: "", exit: "", lotSize: "", profit: "", notes: "", image: null, accountType: "STANDARD", tradeDirection: "BUY", stopLossPips: "" });
+      setFormData({ symbol: "", entry: "", exit: "", lotSize: "", profit: "", riskAmount: "", notes: "", image: null, accountType: "STANDARD", tradeDirection: "BUY", stopLossPips: "" });
       setImagePreview(null);
       setIsDayOptionsModalOpen(false);
       setShowModal(false);
@@ -351,6 +355,11 @@ export default function Dashboard() {
   };
 
   // Add delete handler function
+  const handleDeleteClick = (trade) => {
+    setTradeToDelete(trade);
+    setDeleteModalOpen(true);
+  };
+
   const handleDeleteTrade = async (tradeId) => {
     if (!user) return;
     
@@ -393,6 +402,7 @@ export default function Dashboard() {
       exit: trade.exit.toString(),
       lotSize: trade.lotSize.toString(),
       profit: trade.profit.toString(),
+      riskAmount: trade.riskAmount ? trade.riskAmount.toString() : "",
       notes: trade.notes || "",
       image: null,
       accountType: trade.accountType || "STANDARD",
@@ -428,7 +438,7 @@ export default function Dashboard() {
         stopLossPips: formData.stopLossPips ? Number(formData.stopLossPips) : null,
       });
 
-      setFormData({ symbol: "", entry: "", exit: "", lotSize: "", profit: "", notes: "", image: null, accountType: "STANDARD", tradeDirection: "BUY", stopLossPips: "" });
+      setFormData({ symbol: "", entry: "", exit: "", lotSize: "", profit: "", riskAmount: "", notes: "", image: null, accountType: "STANDARD", tradeDirection: "BUY", stopLossPips: "" });
       setImagePreview(null);
       setEditingTrade(null);
       setIsEditModalOpen(false);
@@ -486,6 +496,51 @@ export default function Dashboard() {
       setMetricsEndDate(smartRange.end);
       setSelectedDuration('30D');
     }
+  };
+
+  // Load user preferences (currency, etc.) from users collection
+  const loadUserPreferences = async () => {
+    if (!user) return;
+    
+    try {
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        setUserSettings(userData.settings || { display: { currency: 'USD' } });
+        // Load display name if available
+        setUserDisplayName(userData.displayName || null);
+      } else {
+        setUserSettings({ display: { currency: 'USD' } });
+        setUserDisplayName(null);
+      }
+    } catch (error) {
+      console.error('Error loading user preferences:', error);
+      setUserSettings({ display: { currency: 'USD' } });
+      setUserDisplayName(null);
+    }
+  };
+
+  // Dynamic currency formatter based on user settings
+  const formatCurrency = (n, currency = 'USD') => {
+    const currencyMap = {
+      'USD': { locale: 'en-US', currency: 'USD' },
+      'EUR': { locale: 'en-EU', currency: 'EUR' },
+      'GBP': { locale: 'en-GB', currency: 'GBP' },
+      'JPY': { locale: 'ja-JP', currency: 'JPY' }
+    };
+    
+    const config = currencyMap[currency] || currencyMap['USD'];
+    return n.toLocaleString(config.locale, { 
+      style: "currency", 
+      currency: config.currency, 
+      maximumFractionDigits: currency === 'JPY' ? 0 : 2 
+    });
+  };
+
+  // Helper function to format currency with user's preferred currency
+  const formatMoney = (amount) => {
+    const currency = userSettings?.display?.currency || 'USD';
+    return formatCurrency(amount, currency);
   };
 
   // Optimize handlers with useCallback
@@ -764,6 +819,7 @@ export default function Dashboard() {
             <div className="flex flex-col gap-3 sm:gap-4">
               <DashboardHeader
                 username={user?.email || "Trader"}
+                displayName={userDisplayName}
                 balance={currentBalance}
                 dailyPnL={dailyPnL}
                 onMenuClick={() => setSidebarOpen(!sidebarOpen)}
@@ -946,6 +1002,11 @@ export default function Dashboard() {
                 onDeleteTrade={handleDeleteTrade}
                 onEditTrade={handleEditTrade}
                 isDashboardView={true}
+                currencyFormatter={formatMoney}
+                deleteModalOpen={deleteModalOpen}
+                deleteLoading={deleteLoading}
+                onDeleteClick={handleDeleteClick}
+                onDeleteCancel={handleDeleteCancel}
               />
             ) : (
               <div className="text-center py-8 text-gray-400">

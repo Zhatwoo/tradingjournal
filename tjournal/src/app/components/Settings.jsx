@@ -58,6 +58,7 @@ export default function Settings() {
     return unsubscribe;
   }, [router]);
 
+
   const loadUserSettings = async (userId) => {
     try {
       const userDoc = await getDoc(doc(db, 'users', userId));
@@ -65,6 +66,10 @@ export default function Settings() {
         const userData = userDoc.data();
         if (userData.settings) {
           setSettings(prev => ({ ...prev, ...userData.settings }));
+        }
+        // Load display name from Firestore if available
+        if (userData.displayName) {
+          setDisplayName(userData.displayName);
         }
       } else {
         // Create user document if it doesn't exist
@@ -86,10 +91,19 @@ export default function Settings() {
     
     setLoading(true);
     try {
+      // Update Firebase Auth profile
       await updateProfile(user, { displayName });
+      
+      // Update Firestore user document
+      await updateDoc(doc(db, 'users', user.uid), {
+        displayName: displayName,
+        lastUpdated: new Date().toISOString()
+      });
+      
       setMessage({ type: 'success', text: 'Profile updated successfully!' });
       setTimeout(() => setMessage({ type: '', text: '' }), 3000);
     } catch (error) {
+      console.error('Error updating profile:', error);
       setMessage({ type: 'error', text: 'Failed to update profile. Please try again.' });
     } finally {
       setLoading(false);
@@ -194,9 +208,9 @@ export default function Settings() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white p-4 sm:p-6 lg:p-8">
-      {/* Header */}
-      <div className="max-w-4xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 pb-8 sm:pb-12">
+        {/* Header */}
+        <div className="max-w-4xl mx-auto">
         <div className="flex items-center gap-4 mb-8">
           <button
             onClick={() => router.back()}
@@ -621,7 +635,7 @@ export default function Settings() {
             Logout
           </button>
         </div>
-      </div>
+        </div>
     </div>
   );
 }

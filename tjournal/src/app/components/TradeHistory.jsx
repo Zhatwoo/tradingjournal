@@ -15,9 +15,18 @@ import {
 } from 'lucide-react';
 import { useTimezone } from '../contexts/TimezoneContext';
 import { formatDateInTimezone, getDateStringInTimezone, getTimezoneDisplayName } from '../utils/timezoneUtils';
-import DeleteConfirmationModal from './DeleteConfirmationModal';
 
-export default function TradeHistory({ trades, onDeleteTrade, isDashboardView = false }) {
+export default function TradeHistory({ 
+  trades, 
+  onDeleteTrade, 
+  isDashboardView = false, 
+  currencyFormatter,
+  // Delete modal props from parent
+  deleteModalOpen = false,
+  deleteLoading = false,
+  onDeleteClick = null,
+  onDeleteCancel = null
+}) {
   const [filterSymbol, setFilterSymbol] = useState('');
   const [filterProfit, setFilterProfit] = useState('all'); // all, profit, loss
   const [filterStrategy, setFilterStrategy] = useState('all'); // all, or specific strategy
@@ -31,10 +40,10 @@ export default function TradeHistory({ trades, onDeleteTrade, isDashboardView = 
   const [lastUpdate, setLastUpdate] = useState(null); // Track last update time
   const [isClient, setIsClient] = useState(false);
   
-  // Delete confirmation modal state
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [tradeToDelete, setTradeToDelete] = useState(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
+  
+  // Trade detail modal state
+  const [tradeDetailModalOpen, setTradeDetailModalOpen] = useState(false);
+  const [selectedTrade, setSelectedTrade] = useState(null);
   
   // Get timezone from context
   const { userTimezone } = useTimezone();
@@ -44,30 +53,22 @@ export default function TradeHistory({ trades, onDeleteTrade, isDashboardView = 
     return getDateStringInTimezone(date, userTimezone);
   };
 
-  // Delete confirmation functions
+  // Use parent's delete handler
   const handleDeleteClick = (trade) => {
-    setTradeToDelete(trade);
-    setDeleteModalOpen(true);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!tradeToDelete || !onDeleteTrade) return;
-    
-    setDeleteLoading(true);
-    try {
-      await onDeleteTrade(tradeToDelete.id);
-      setDeleteModalOpen(false);
-      setTradeToDelete(null);
-    } catch (error) {
-      console.error('Error deleting trade:', error);
-    } finally {
-      setDeleteLoading(false);
+    if (onDeleteClick) {
+      onDeleteClick(trade);
     }
   };
 
-  const handleDeleteCancel = () => {
-    setDeleteModalOpen(false);
-    setTradeToDelete(null);
+  // Trade detail modal functions
+  const handleTradeClick = (trade) => {
+    setSelectedTrade(trade);
+    setTradeDetailModalOpen(true);
+  };
+
+  const handleCloseTradeDetail = () => {
+    setTradeDetailModalOpen(false);
+    setSelectedTrade(null);
   };
 
   // Set client-side flag to prevent hydration mismatch
@@ -84,7 +85,7 @@ export default function TradeHistory({ trades, onDeleteTrade, isDashboardView = 
   }, [trades, isClient]);
 
   // Helper functions
-  const formatCurrency = (n) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+  const formatMoney = currencyFormatter || ((n) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }));
   const pct = (n) => `${(n * 100).toFixed(1)}%`;
 
   // Get unique strategies
@@ -105,7 +106,7 @@ export default function TradeHistory({ trades, onDeleteTrade, isDashboardView = 
       // Date range filtering (User's Preferred Timezone)
       let matchesDate = true;
       if (dateRange.start || dateRange.end) {
-        const tradeDate = getUserDateString(new Date(trade.date)); // YYYY-MM-DD format in user's preferred timezone
+        const tradeDate = getUserDateString(new Date(trade.createdAt || trade.date)); // YYYY-MM-DD format in user's preferred timezone
         matchesDate = (!dateRange.start || tradeDate >= dateRange.start) && 
                      (!dateRange.end || tradeDate <= dateRange.end);
       }
@@ -117,7 +118,7 @@ export default function TradeHistory({ trades, onDeleteTrade, isDashboardView = 
         const today = getUserDateString(now); // YYYY-MM-DD format in user's preferred timezone
         const yesterday = getUserDateString(new Date(now.getTime() - 24 * 60 * 60 * 1000));
         const thisWeek = getUserDateString(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000));
-        const tradeDate = getUserDateString(new Date(trade.date));
+        const tradeDate = getUserDateString(new Date(trade.createdAt || trade.date));
         
         switch (timeFilter) {
           case 'today':
@@ -141,21 +142,21 @@ export default function TradeHistory({ trades, onDeleteTrade, isDashboardView = 
       
       switch (sortBy) {
         case 'date':
-          aValue = getUserDateString(new Date(a.date));
-          bValue = getUserDateString(new Date(b.date));
+          aValue = getUserDateString(new Date(a.createdAt || a.date));
+          bValue = getUserDateString(new Date(b.createdAt || b.date));
           break;
         case 'time':
         case 'uploadTime':
           // Sort by full timestamp (most recent first by default)
           // Uses timezone-aware timestamps for accurate sorting
-          aValue = new Date(a.date).getTime();
-          bValue = new Date(b.date).getTime();
+          aValue = new Date(a.createdAt || a.date).getTime();
+          bValue = new Date(b.createdAt || b.date).getTime();
           break;
         case 'datetime':
           // Sort by full timestamp including time (most recent first by default)
           // Uses timezone-aware timestamps for accurate sorting
-          aValue = new Date(a.date).getTime();
-          bValue = new Date(b.date).getTime();
+          aValue = new Date(a.createdAt || a.date).getTime();
+          bValue = new Date(b.createdAt || b.date).getTime();
           break;
         case 'profit':
           aValue = a.profit;
@@ -168,8 +169,8 @@ export default function TradeHistory({ trades, onDeleteTrade, isDashboardView = 
         default:
           // Default to time-based sorting (most recent first)
           // Uses timezone-aware timestamps for accurate sorting
-          aValue = new Date(a.date).getTime();
-          bValue = new Date(b.date).getTime();
+          aValue = new Date(a.createdAt || a.date).getTime();
+          bValue = new Date(b.createdAt || b.date).getTime();
       }
 
       if (sortOrder === 'asc') {
@@ -403,7 +404,7 @@ export default function TradeHistory({ trades, onDeleteTrade, isDashboardView = 
           <div className={`px-3 py-1 rounded-lg ${metrics.totalPnL >= 0 ? 'bg-green-500/20 border-green-500/30' : 'bg-red-500/20 border-red-500/30'} border`}>
             <span className={metrics.totalPnL >= 0 ? 'text-green-400' : 'text-red-400'}>P&L: </span>
             <span className={`${metrics.totalPnL >= 0 ? 'text-green-300' : 'text-red-300'} font-medium`}>
-              {formatCurrency(metrics.totalPnL)}
+              {formatMoney(metrics.totalPnL)}
             </span>
           </div>
           <div className="bg-blue-500/20 px-3 py-1 rounded-lg border border-blue-500/30">
@@ -437,7 +438,7 @@ export default function TradeHistory({ trades, onDeleteTrade, isDashboardView = 
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-4">
             <MetricCard 
               title="Total P&L" 
-              value={formatCurrency(metrics.totalPnL)} 
+              value={formatMoney(metrics.totalPnL)} 
               icon={<DollarSign className="h-4 w-4" />}
               color={metrics.totalPnL >= 0 ? "green" : "red"}
             />
@@ -455,13 +456,13 @@ export default function TradeHistory({ trades, onDeleteTrade, isDashboardView = 
             />
             <MetricCard 
               title="Avg Win" 
-              value={formatCurrency(metrics.avgWin)} 
+              value={formatMoney(metrics.avgWin)} 
               icon={<TrendingUp className="h-4 w-4" />}
               color="green"
             />
             <MetricCard 
               title="Avg Loss" 
-              value={formatCurrency(metrics.avgLoss)} 
+              value={formatMoney(metrics.avgLoss)} 
               icon={<TrendingDown className="h-4 w-4" />}
               color="red"
             />
@@ -477,13 +478,13 @@ export default function TradeHistory({ trades, onDeleteTrade, isDashboardView = 
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-4">
             <MetricCard 
               title="Max Win" 
-              value={formatCurrency(metrics.maxWin)} 
+              value={formatMoney(metrics.maxWin)} 
               icon={<TrendingUp className="h-4 w-4" />}
               color="green"
             />
             <MetricCard 
               title="Max Loss" 
-              value={formatCurrency(metrics.maxLoss)} 
+              value={formatMoney(metrics.maxLoss)} 
               icon={<TrendingDown className="h-4 w-4" />}
               color="red"
             />
@@ -501,13 +502,13 @@ export default function TradeHistory({ trades, onDeleteTrade, isDashboardView = 
             />
             <MetricCard 
               title="Best Month" 
-              value={formatCurrency(metrics.bestMonth)} 
+              value={formatMoney(metrics.bestMonth)} 
               icon={<Calendar className="h-4 w-4" />}
               color="green"
             />
             <MetricCard 
               title="Worst Month" 
-              value={formatCurrency(metrics.worstMonth)} 
+              value={formatMoney(metrics.worstMonth)} 
               icon={<Calendar className="h-4 w-4" />}
               color="red"
             />
@@ -527,7 +528,7 @@ export default function TradeHistory({ trades, onDeleteTrade, isDashboardView = 
                     <span className="text-gray-300">{symbol.symbol}</span>
                     <div className="flex items-center gap-2">
                       <span className={`${symbol.totalPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {formatCurrency(symbol.totalPnL)}
+                        {formatMoney(symbol.totalPnL)}
                       </span>
                       <span className="text-gray-400">({symbol.trades})</span>
                     </div>
@@ -548,7 +549,7 @@ export default function TradeHistory({ trades, onDeleteTrade, isDashboardView = 
                     <span className="text-gray-300">{strategy.strategy}</span>
                     <div className="flex items-center gap-2">
                       <span className={`${strategy.totalPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {formatCurrency(strategy.totalPnL)}
+                        {formatMoney(strategy.totalPnL)}
                       </span>
                       <span className="text-gray-400">({pct(strategy.winRate)})</span>
                     </div>
@@ -692,7 +693,8 @@ export default function TradeHistory({ trades, onDeleteTrade, isDashboardView = 
           {currentTrades.map((trade) => (
             <div
               key={trade.id}
-              className="bg-gray-700/30 hover:bg-gray-700/50 rounded-lg p-3 sm:p-4 border border-gray-600/30 transition-all duration-200 hover:border-gray-500/50"
+              onClick={() => handleTradeClick(trade)}
+              className="bg-gray-700/30 hover:bg-gray-700/50 rounded-lg p-3 sm:p-4 border border-gray-600/30 transition-all duration-200 hover:border-gray-500/50 cursor-pointer group"
             >
               <div className="flex flex-col lg:flex-row lg:items-center gap-3 sm:gap-4">
                 {/* Symbol and Date */}
@@ -702,15 +704,18 @@ export default function TradeHistory({ trades, onDeleteTrade, isDashboardView = 
                     <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs sm:text-sm font-medium w-fit">
                       {trade.lotSize > 0 ? trade.lotSize : "0.01"}
                     </span>
+                    <span className="px-2 py-1 bg-purple-500/20 text-purple-400 rounded text-xs sm:text-sm font-medium w-fit">
+                      {trade.tradeDirection || 'BUY'}
+                    </span>
                     <span className="text-xs sm:text-sm text-gray-400">
-                      {new Date(trade.date).toLocaleDateString(undefined, {
+                      {new Date(trade.createdAt || trade.date).toLocaleDateString(undefined, {
                         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
                       })}
                     </span>
                   </div>
                   
-                  {/* Entry/Exit Prices */}
-                  <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm">
+                  {/* Enhanced Summary Information */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 text-xs sm:text-sm mb-2">
                     <div>
                       <span className="text-gray-400">Entry: </span>
                       <span className="text-white font-medium">${trade.entry || "N/A"}</span>
@@ -722,22 +727,50 @@ export default function TradeHistory({ trades, onDeleteTrade, isDashboardView = 
                     <div>
                       <span className="text-gray-400">Time: </span>
                       <span className="text-white font-medium">
-                        {formatDateInTimezone(trade.date, userTimezone, { 
+                        {formatDateInTimezone(trade.createdAt || trade.date, userTimezone, { 
                           hour: '2-digit', 
                           minute: '2-digit',
                           hour12: true
                         })}
                       </span>
-                      <span className="text-xs text-gray-500 ml-1">
-                        ({getTimezoneDisplayName(userTimezone).split('(')[1]?.replace(')', '') || 'Local'})
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Account: </span>
+                      <span className="text-white font-medium">{trade.accountType || 'STANDARD'}</span>
+                    </div>
+                  </div>
+
+                  {/* Risk Information */}
+                  {trade.riskAmount && trade.riskAmount > 0 && (
+                    <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm mb-2">
+                      <div>
+                        <span className="text-gray-400">Risk: </span>
+                        <span className="text-red-400 font-medium">${trade.riskAmount}</span>
+                      </div>
+                      {trade.profit && trade.riskAmount && (
+                        <div>
+                          <span className="text-gray-400">R/R: </span>
+                          <span className="text-blue-400 font-medium">
+                            {(Math.abs(trade.profit) / trade.riskAmount).toFixed(2)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Notes Preview */}
+                  {trade.notes && (
+                    <div className="text-xs sm:text-sm">
+                      <span className="text-gray-400">Notes: </span>
+                      <span className="text-gray-300">
+                        {trade.notes.length > 100 ? `${trade.notes.substring(0, 100)}...` : trade.notes}
                       </span>
                     </div>
-                    {trade.notes && (
-                      <div className="flex-1">
-                        <span className="text-gray-400">Notes: </span>
-                        <span className="text-gray-300">{trade.notes}</span>
-                      </div>
-                    )}
+                  )}
+
+                  {/* Click indicator */}
+                  <div className="mt-2 text-xs text-gray-500 group-hover:text-gray-400 transition-colors">
+                    Click to view full details
                   </div>
                 </div>
 
@@ -753,7 +786,10 @@ export default function TradeHistory({ trades, onDeleteTrade, isDashboardView = 
                   </div>
                   
                   <button
-                    onClick={() => handleDeleteClick(trade)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteClick(trade);
+                    }}
                     className="text-red-500 hover:text-red-400 hover:bg-red-500/10 p-1.5 sm:p-2 rounded-lg transition-all duration-200"
                     title="Delete trade"
                   >
@@ -842,18 +878,201 @@ export default function TradeHistory({ trades, onDeleteTrade, isDashboardView = 
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      <DeleteConfirmationModal
-        isOpen={deleteModalOpen}
-        onClose={handleDeleteCancel}
-        onConfirm={handleDeleteConfirm}
-        title="Delete Trade"
-        message="Are you sure you want to delete this trade? This action cannot be undone."
-        itemName={tradeToDelete ? `${tradeToDelete.symbol} - ${tradeToDelete.profit >= 0 ? 'Profit' : 'Loss'} $${Math.abs(tradeToDelete.profit).toFixed(2)}` : ''}
-        itemType="trade"
-        loading={deleteLoading}
-        destructive={true}
-      />
+
+      {/* Trade Detail Modal */}
+      {tradeDetailModalOpen && selectedTrade && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-gray-800 p-6 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold text-white">Trade Details</h2>
+              <button
+                onClick={handleCloseTradeDetail}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Trade Header */}
+              <div className="bg-gray-700/50 p-4 rounded-lg">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl font-bold text-white">{selectedTrade.symbol}</span>
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      selectedTrade.tradeDirection === 'BUY' 
+                        ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                        : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                    }`}>
+                      {selectedTrade.tradeDirection || 'BUY'}
+                    </span>
+                  </div>
+                  <div className={`text-right ${selectedTrade.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    <div className="text-3xl font-bold">
+                      {selectedTrade.profit >= 0 ? '+' : ''}${selectedTrade.profit}
+                    </div>
+                    <div className="text-sm text-gray-400">
+                      {selectedTrade.profit >= 0 ? 'Profit' : 'Loss'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Trade Information Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Basic Information */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-white border-b border-gray-600 pb-2">Basic Information</h3>
+                  
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Currency Pair:</span>
+                      <span className="text-white font-medium">{selectedTrade.symbol}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Trade Direction:</span>
+                      <span className={`font-medium ${selectedTrade.tradeDirection === 'BUY' ? 'text-green-400' : 'text-red-400'}`}>
+                        {selectedTrade.tradeDirection || 'BUY'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Lot Size:</span>
+                      <span className="text-white font-medium">{selectedTrade.lotSize || '0.01'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Account Type:</span>
+                      <span className="text-white font-medium">{selectedTrade.accountType || 'STANDARD'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Price Information */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-white border-b border-gray-600 pb-2">Price Information</h3>
+                  
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Entry Price:</span>
+                      <span className="text-white font-medium">${selectedTrade.entry || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Exit Price:</span>
+                      <span className="text-white font-medium">${selectedTrade.exit || 'N/A'}</span>
+                    </div>
+                    {selectedTrade.entry && selectedTrade.exit && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Price Movement:</span>
+                        <span className={`font-medium ${selectedTrade.exit > selectedTrade.entry ? 'text-green-400' : 'text-red-400'}`}>
+                          {selectedTrade.exit > selectedTrade.entry ? '+' : ''}{(selectedTrade.exit - selectedTrade.entry).toFixed(5)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Risk Management */}
+              {selectedTrade.riskAmount && selectedTrade.riskAmount > 0 && (
+                <div className="bg-gray-700/30 p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold text-white border-b border-gray-600 pb-2 mb-4">Risk Management</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-red-400">${selectedTrade.riskAmount}</div>
+                      <div className="text-sm text-gray-400">Risk Amount</div>
+                    </div>
+                    {selectedTrade.profit && selectedTrade.riskAmount && (
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-blue-400">
+                          {(Math.abs(selectedTrade.profit) / selectedTrade.riskAmount).toFixed(2)}
+                        </div>
+                        <div className="text-sm text-gray-400">Risk/Reward Ratio</div>
+                      </div>
+                    )}
+                    <div className="text-center">
+                      <div className={`text-2xl font-bold ${selectedTrade.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {selectedTrade.profit >= 0 ? 'WIN' : 'LOSS'}
+                      </div>
+                      <div className="text-sm text-gray-400">Trade Result</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Date and Time Information */}
+              <div className="bg-gray-700/30 p-4 rounded-lg">
+                <h3 className="text-lg font-semibold text-white border-b border-gray-600 pb-2 mb-4">Date & Time</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-sm text-gray-400 mb-1">Trade Date</div>
+                    <div className="text-white font-medium">
+                      {formatDateInTimezone(selectedTrade.createdAt || selectedTrade.date, userTimezone, {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-400 mb-1">Trade Time</div>
+                    <div className="text-white font-medium">
+                      {formatDateInTimezone(selectedTrade.createdAt || selectedTrade.date, userTimezone, {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: true
+                      })}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-400 mb-1">Timezone</div>
+                    <div className="text-white font-medium">
+                      {getTimezoneDisplayName(userTimezone)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-400 mb-1">Data Source</div>
+                    <div className="text-white font-medium">
+                      {selectedTrade.isMetricData ? 'Auto-saved Metrics' : 'Regular Trade'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes */}
+              {selectedTrade.notes && (
+                <div className="bg-gray-700/30 p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold text-white border-b border-gray-600 pb-2 mb-4">Trade Notes</h3>
+                  <div className="text-gray-300 whitespace-pre-wrap">{selectedTrade.notes}</div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-600">
+                <button
+                  onClick={handleCloseTradeDetail}
+                  className="px-6 py-3 bg-gray-600 hover:bg-gray-500 text-white rounded-lg font-medium transition-colors duration-200"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => {
+                    handleCloseTradeDetail();
+                    handleDeleteClick(selectedTrade);
+                  }}
+                  className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors duration-200"
+                >
+                  Delete Trade
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
