@@ -31,6 +31,7 @@ export default function AddTradePage() {
     profit: "",
     riskAmount: "",
     notes: "",
+    image: null,
     accountType: "STANDARD",
     tradeDirection: "BUY",
     stopLossPips: "",
@@ -75,6 +76,7 @@ export default function AddTradePage() {
     const { name, value, files } = e.target;
 
     if (name === "image" && files[0]) {
+      setFormData({ ...formData, image: files[0] });
       setSelectedImage(files[0]);
       setImagePreview(URL.createObjectURL(files[0]));
     } else {
