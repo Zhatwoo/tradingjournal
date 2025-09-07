@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth, db } from '../lib/firebase';
-import { collection, query, where, onSnapshot, orderBy, doc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, doc, deleteDoc, getDoc } from 'firebase/firestore';
 import TradeHistory from "../components/TradeHistory";
 import Sidebar from "../components/Sidebar";
 import Footer from "../components/Footer";
@@ -13,6 +13,7 @@ import { ArrowLeft } from 'lucide-react';
 export default function TradeHistoryPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
+  const [userSettings, setUserSettings] = useState(null);
   const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
   
@@ -22,6 +23,47 @@ export default function TradeHistoryPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+
+  // Load user preferences (currency, etc.) from users collection
+  const loadUserPreferences = async () => {
+    if (!user) return;
+    
+    try {
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        setUserSettings(userData.settings || { display: { currency: 'USD' } });
+      } else {
+        setUserSettings({ display: { currency: 'USD' } });
+      }
+    } catch (error) {
+      console.error('Error loading user preferences:', error);
+      setUserSettings({ display: { currency: 'USD' } });
+    }
+  };
+
+  // Dynamic currency formatter based on user settings
+  const formatCurrency = (n, currency = 'USD') => {
+    const currencyMap = {
+      'USD': { locale: 'en-US', currency: 'USD' },
+      'EUR': { locale: 'en-EU', currency: 'EUR' },
+      'GBP': { locale: 'en-GB', currency: 'GBP' },
+      'JPY': { locale: 'ja-JP', currency: 'JPY' }
+    };
+    
+    const config = currencyMap[currency] || currencyMap['USD'];
+    return n.toLocaleString(config.locale, { 
+      style: "currency", 
+      currency: config.currency, 
+      maximumFractionDigits: currency === 'JPY' ? 0 : 2 
+    });
+  };
+
+  // Helper function to format currency with user's preferred currency
+  const formatMoney = (amount) => {
+    const currency = userSettings?.display?.currency || 'USD';
+    return formatCurrency(amount, currency);
+  };
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -51,7 +93,10 @@ export default function TradeHistoryPage() {
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
       if (!currentUser) router.push("/auth/login");
-      else setUser(currentUser);
+      else {
+        setUser(currentUser);
+        loadUserPreferences();
+      }
     });
     return unsubscribe;
   }, [router]);
@@ -73,6 +118,11 @@ export default function TradeHistoryPage() {
     });
     return () => unsubscribe();
   }, [user]);
+
+  const handleDeleteClick = (trade) => {
+    setTradeToDelete(trade);
+    setDeleteModalOpen(true);
+  };
 
   const handleDeleteTrade = async (tradeId) => {
     if (!user) return;
@@ -161,6 +211,11 @@ export default function TradeHistoryPage() {
           <TradeHistory 
             trades={trades} 
             onDeleteTrade={handleDeleteTrade}
+            currencyFormatter={formatMoney}
+            deleteModalOpen={deleteModalOpen}
+            deleteLoading={deleteLoading}
+            onDeleteClick={handleDeleteClick}
+            onDeleteCancel={handleDeleteCancel}
           />
         </div>
       </div>
