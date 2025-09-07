@@ -368,6 +368,7 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
                   name="image"
                   accept="image/*"
                   onChange={handleChange}
+                  key={`file-input-${showModal}-${mode}`}
                   className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                 />
                 {(imagePreview || pastedImage) && (
@@ -621,6 +622,7 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
                   name="image"
                   accept="image/*"
                   onChange={handleChange}
+                  key={`file-input-${showModal}-${mode}`}
                   className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                 />
                 {(imagePreview || pastedImage) && (
