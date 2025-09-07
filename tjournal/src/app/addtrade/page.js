@@ -29,13 +29,14 @@ export default function AddTradePage() {
     exit: "",
     lotSize: "",
     profit: "",
+    riskAmount: "",
     notes: "",
-    image: null,
     accountType: "STANDARD",
     tradeDirection: "BUY",
     stopLossPips: "",
   });
   const [imagePreview, setImagePreview] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -74,7 +75,7 @@ export default function AddTradePage() {
     const { name, value, files } = e.target;
 
     if (name === "image" && files[0]) {
-      setFormData({ ...formData, image: files[0] });
+      setSelectedImage(files[0]);
       setImagePreview(URL.createObjectURL(files[0]));
     } else {
       setFormData({ ...formData, [name]: value });
@@ -120,9 +121,9 @@ export default function AddTradePage() {
       }
       
       let imageUrl = null;
-      if (dataToSubmit.image) {
-        const storageRef = ref(storage, `trades1/${user.uid}/${Date.now()}_${dataToSubmit.image.name}`);
-        await uploadBytes(storageRef, dataToSubmit.image);
+      if (selectedImage) {
+        const storageRef = ref(storage, `trades1/${user.uid}/${Date.now()}_${selectedImage.name}`);
+        await uploadBytes(storageRef, selectedImage);
         imageUrl = await getDownloadURL(storageRef);
       }
 
@@ -145,7 +146,7 @@ export default function AddTradePage() {
       await addDoc(collection(db, "trades1"), tradeData);
       console.log("Trade added successfully from addtrade page");
 
-      setFormData({ symbol: "", entry: "", exit: "", lotSize: "", profit: "", notes: "", image: null, accountType: "STANDARD", tradeDirection: "BUY", stopLossPips: "" });
+      setFormData({ symbol: "", entry: "", exit: "", lotSize: "", profit: "", riskAmount: "", notes: "", image: null, accountType: "STANDARD", tradeDirection: "BUY", stopLossPips: "" });
       setImagePreview(null);
       setShowModal(false);
       setMessage({ type: 'success', text: 'Trade added successfully!' });
@@ -225,6 +226,7 @@ export default function AddTradePage() {
             formData={formData}
             handleChange={handleChange}
             imagePreview={imagePreview}
+            selectedImage={selectedImage}
             loading={loading}
           />
         </div>

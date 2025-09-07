@@ -3,44 +3,33 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { 
-  calculateTradeProfitLoss, 
-  calculatePipValue, 
-  calculatePositionSize, 
-  calculateRiskAmount,
-  getPipSize,
-  formatPrice,
-  validateLotSize,
   getAvailablePairs,
-  getAccountTypes,
-  ACCOUNT_TYPES
+  getAccountTypes
 } from '../utils/forexCalculations';
 import { useTimezone } from '../contexts/TimezoneContext';
 import { formatDateInTimezone, getTimezoneDisplayName, createDateTimeFromDeviceTime } from '../utils/timezoneUtils';
 
-export default function AddTradeModal({ showModal, setShowModal, handleSubmit, formData, handleChange, selectedDate, loading = false }) {
+export default function AddTradeModal({ showModal, setShowModal, handleSubmit, formData, handleChange, selectedDate, selectedImage, loading = false }) {
   const [imagePreview, setImagePreview] = useState(null);
   const [pastedImage, setPastedImage] = useState(null);
-  const [accountType, setAccountType] = useState('STANDARD');
   const [tradeDirection, setTradeDirection] = useState('BUY');
-  const [stopLossPips, setStopLossPips] = useState('');
   const [availablePairs] = useState(getAvailablePairs());
-  const [accountTypes] = useState(getAccountTypes());
   const [mode, setMode] = useState('simple'); // 'simple' or 'advanced'
   const [currentTime, setCurrentTime] = useState(new Date());
   
   // Get timezone from context
   const { userTimezone, getEffectiveTimezoneForUser } = useTimezone();
 
-  // Update image preview when formData.image changes
+  // Update image preview when selectedImage changes
   useEffect(() => {
-    if (formData.image) {
+    if (selectedImage) {
       const fileReader = new FileReader();
       fileReader.onload = () => setImagePreview(fileReader.result);
-      fileReader.readAsDataURL(formData.image);
+      fileReader.readAsDataURL(selectedImage);
     } else {
       setImagePreview(null);
     }
-  }, [formData.image]);
+  }, [selectedImage]);
 
   // Update current time every second when modal is open (User's Preferred Timezone)
   useEffect(() => {
@@ -54,6 +43,38 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
 
     return () => clearInterval(timer);
   }, [showModal]);
+
+
+
+  // Automatically save metrics data to overall performance system
+  const autoSaveMetrics = (tradeData) => {
+    const metricsData = {
+      id: Date.now().toString(),
+      timestamp: new Date().toISOString(),
+      date: selectedDate || new Date(),
+      symbol: tradeData.symbol || '',
+      profit: parseFloat(tradeData.profit || 0),
+      riskAmount: parseFloat(tradeData.riskAmount || 0),
+      entry: parseFloat(tradeData.entry || 0),
+      exit: parseFloat(tradeData.exit || 0),
+      lotSize: parseFloat(tradeData.lotSize || 0),
+      notes: tradeData.notes || '',
+      tradeDirection: tradeData.tradeDirection || tradeDirection,
+      mode: mode,
+      accountType: tradeData.accountType || 'STANDARD',
+      userTimezone: userTimezone,
+      deviceTimeTimestamp: selectedDate ? createDateTimeFromDeviceTime(selectedDate) : createDateTimeFromDeviceTime(new Date()),
+      createdAt: new Date().toISOString() // Include createdAt for metrics data too
+    };
+
+    // Save to localStorage for overall performance system
+    const existingMetrics = JSON.parse(localStorage.getItem('tradingMetricsForPerformance') || '[]');
+    const updatedMetrics = [...existingMetrics, metricsData];
+    localStorage.setItem('tradingMetricsForPerformance', JSON.stringify(updatedMetrics));
+    
+    console.log('Metrics automatically saved to overall performance system:', metricsData);
+  };
+
 
   // Handle paste events for screenshots
   const handlePaste = (e) => {
@@ -101,63 +122,35 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
     }
   };
 
-  // Real-time metrics calculation using useMemo for performance
-  const metrics = useMemo(() => {
-    const entry = Number(formData.entry) || 0;
-    const exit = Number(formData.exit) || 0;
-    const lotSize = Number(formData.lotSize) || 0;
-    const symbol = formData.symbol || '';
-    
-    if (!symbol || !entry || !exit || !lotSize) {
-      return { 
-        profit: 0, 
-        positionSize: 0, 
-        pips: 0, 
-        riskAmount: 0, 
-        pipValue: 0,
-        riskRewardRatio: 0,
-        riskPercentage: 0,
-        potentialProfit: 0,
-        potentialLoss: 0
-      };
+  // Simple validation for manual journaling mode
+  const isFormValid = useMemo(() => {
+    if (mode === 'simple') {
+      return formData.symbol && formData.profit;
+    } else {
+      return formData.symbol && formData.profit;
     }
-    
-    // Calculate profit/loss using forex formulas
-    const profit = calculateTradeProfitLoss(symbol, entry, exit, lotSize, accountType, tradeDirection);
-    
-    // Calculate position size
-    const positionSize = calculatePositionSize(symbol, lotSize, accountType, entry);
-    
-    // Calculate pip value
-    const pipValue = calculatePipValue(symbol, accountType, entry);
-    
-    // Calculate pips moved
-    const pipSize = getPipSize(symbol);
-    const pips = Math.abs(exit - entry) / pipSize;
-    
-    // Calculate risk amount if stop loss is provided
-    const riskAmount = stopLossPips ? calculateRiskAmount(symbol, lotSize, Number(stopLossPips), accountType, entry) : 0;
-    
-    // Calculate additional metrics
-    const riskRewardRatio = riskAmount > 0 ? Math.abs(profit) / riskAmount : 0;
-    const riskPercentage = riskAmount > 0 ? (riskAmount / positionSize) * 100 : 0;
-    
-    // Calculate potential profit/loss scenarios
-    const potentialProfit = pipValue * pips;
-    const potentialLoss = stopLossPips ? pipValue * Number(stopLossPips) : 0;
-    
-    return { 
-      profit, 
-      positionSize, 
-      pips, 
-      riskAmount, 
-      pipValue,
-      riskRewardRatio,
-      riskPercentage,
-      potentialProfit,
-      potentialLoss
-    };
-  }, [formData.entry, formData.exit, formData.lotSize, formData.symbol, accountType, tradeDirection, stopLossPips]);
+  }, [mode, formData.symbol, formData.profit]);
+
+  // Auto-save metrics when significant data changes (debounced)
+  useEffect(() => {
+    if (formData.symbol && formData.profit && !loading) {
+      const timeoutId = setTimeout(() => {
+        // Only auto-save if we have meaningful data
+        const hasSignificantData = formData.symbol && formData.profit && 
+          (formData.notes || formData.riskAmount || formData.entry || formData.exit);
+        
+        if (hasSignificantData) {
+          autoSaveMetrics({
+            ...formData,
+            tradeDirection: tradeDirection,
+            mode: mode
+          });
+        }
+      }, 2000); // 2 second delay to avoid excessive saves
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [formData.symbol, formData.profit, formData.notes, formData.riskAmount, formData.entry, formData.exit, tradeDirection, mode, loading]);
 
   if (!showModal) return null;
 
@@ -219,7 +212,7 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
                     : 'text-gray-300 hover:text-white hover:bg-gray-600'
                 }`}
               >
-                Advanced
+                Advanced Mode
               </button>
             </div>
           </div>
@@ -236,18 +229,28 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
             // Create a modified form data object with modal state
             const modifiedFormData = {
               ...formData,
-              accountType: mode === 'simple' ? 'STANDARD' : accountType,
+              accountType: 'STANDARD', // Default account type for both modes
               tradeDirection: tradeDirection,
-              stopLossPips: mode === 'simple' ? '' : stopLossPips,
               // For simple mode, set default values for fields not used
               ...(mode === 'simple' ? {
                 entry: 0,
                 exit: 0,
-                lotSize: 0
+                lotSize: 0,
+                riskAmount: 0
+              } : {}),
+              // For advanced mode, ensure manual inputs are properly formatted
+              ...(mode === 'advanced' ? {
+                profit: formData.profit ? parseFloat(formData.profit) : 0,
+                riskAmount: formData.riskAmount ? parseFloat(formData.riskAmount) : 0,
+                entry: formData.entry ? parseFloat(formData.entry) : 0,
+                exit: formData.exit ? parseFloat(formData.exit) : 0,
+                lotSize: formData.lotSize ? parseFloat(formData.lotSize) : 0
               } : {}),
               // Add device time timestamp with appropriate date
               deviceTimeTimestamp: deviceTimeTimestamp,
-              userTimezone: userTimezone
+              userTimezone: userTimezone,
+              // Add createdAt field with current local device time
+              createdAt: new Date().toISOString() // This captures the exact moment the trade is created
             };
             
             // Create a custom event that includes the modified form data
@@ -262,6 +265,9 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
             
             // Submit with the modified data
             await handleSubmit(customEvent);
+            
+            // Automatically save metrics data for review after successful submission
+            autoSaveMetrics(modifiedFormData);
             
             // Clear local state after successful submission
             setImagePreview(null);
@@ -279,7 +285,7 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
                 <label className="block text-sm font-medium text-gray-300 mb-2">Currency Pair</label>
                 <select
                   name="symbol"
-                  value={formData.symbol}
+                  value={formData.symbol || ''}
                   onChange={handleChange}
                   required
                   className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -333,7 +339,7 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
                 <textarea
                   name="notes"
                   placeholder="Enter trade analysis, strategy, or observations... (Ctrl+V to paste screenshots)"
-                  value={formData.notes}
+                  value={formData.notes || ''}
                   onChange={handleChange}
                   onPaste={handlePaste}
                   rows="3"
@@ -379,20 +385,23 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
               </div>
             </div>
           ) : (
-            /* Advanced Mode Form */
+            /* Advanced Mode Form - Manual Journaling */
             <div className="space-y-4">
-              {/* Account Type and Trade Direction Row */}
+              {/* Currency Pair and Trade Direction Row */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Account Type</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Currency Pair</label>
                   <select
-                    value={accountType}
-                    onChange={(e) => setAccountType(e.target.value)}
+                    name="symbol"
+                    value={formData.symbol || ''}
+                    onChange={handleChange}
+                    required
                     className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
-                    {accountTypes.map(type => (
-                      <option key={type.value} value={type.value}>
-                        {type.label} - {type.description}
+                    <option value="">Select Currency Pair</option>
+                    {availablePairs.map(pair => (
+                      <option key={pair.value} value={pair.value}>
+                        {pair.label} ({pair.category})
                       </option>
                     ))}
                   </select>
@@ -410,205 +419,165 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
                 </div>
               </div>
 
-              {/* Symbol and Lot Size Row */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Currency Pair</label>
-                  <select
-                    name="symbol"
-                    value={formData.symbol}
-                    onChange={handleChange}
-                    required
-                    className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  >
-                    <option value="">Select Currency Pair</option>
-                    {availablePairs.map(pair => (
-                      <option key={pair.value} value={pair.value}>
-                        {pair.label} ({pair.category})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Lot Size</label>
-                  <input
-                    type="number"
-                    name="lotSize"
-                    placeholder="0.01, 0.1, 1.0"
-                    step="0.01"
-                    min="0.01"
-                    value={formData.lotSize}
-                    onChange={handleChange}
-                    required
-                    className={`w-full p-3 rounded-lg bg-gray-700 text-white border focus:outline-none focus:ring-1 ${
-                      formData.lotSize && !validateLotSize(Number(formData.lotSize), accountType) 
-                        ? 'border-red-500 focus:border-red-500 focus:ring-red-500' 
-                        : 'border-gray-600 focus:border-blue-500 focus:ring-blue-500'
-                    }`}
-                  />
-                  {formData.lotSize && !validateLotSize(Number(formData.lotSize), accountType) && (
-                    <p className="text-red-400 text-xs mt-1">Invalid lot size for {accountType} account</p>
-                  )}
-                </div>
+              {/* Manual Profit/Loss Input */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Profit/Loss (USD)</label>
+                <input
+                  type="number"
+                  name="profit"
+                  placeholder="Enter profit/loss amount (e.g., 150.50 or -75.25)"
+                  step="0.01"
+                  value={formData.profit || ''}
+                  onChange={handleChange}
+                  required
+                  className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Enter positive value for profit, negative for loss
+                </p>
               </div>
 
-              {/* Entry and Exit Row */}
+              {/* Manual Risk Amount Input */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Risk Amount (USD)</label>
+                <input
+                  type="number"
+                  name="riskAmount"
+                  placeholder="Enter risk amount (e.g., 50.00)"
+                  step="0.01"
+                  min="0"
+                  value={formData.riskAmount || ''}
+                  onChange={handleChange}
+                  className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Amount of money at risk for this trade
+                </p>
+              </div>
+
+              {/* Optional: Entry and Exit Prices for Reference */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Entry Price</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Entry Price (Optional)
+                    <span className="text-xs text-gray-400 ml-2">(For reference only)</span>
+                  </label>
                   <input
                     type="number"
                     name="entry"
-                    placeholder={formData.symbol ? formatPrice(formData.symbol, 1.23456) : "1.23456"}
-                    step={formData.symbol ? getPipSize(formData.symbol) : "0.00001"}
-                    value={formData.entry}
+                    placeholder="1.23456"
+                    step="0.00001"
+                    value={formData.entry || ''}
                     onChange={handleChange}
-                    required
                     className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Exit Price</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Exit Price (Optional)
+                    <span className="text-xs text-gray-400 ml-2">(For reference only)</span>
+                  </label>
                   <input
                     type="number"
                     name="exit"
-                    placeholder={formData.symbol ? formatPrice(formData.symbol, 1.23567) : "1.23567"}
-                    step={formData.symbol ? getPipSize(formData.symbol) : "0.00001"}
-                    value={formData.exit}
+                    placeholder="1.23567"
+                    step="0.00001"
+                    value={formData.exit || ''}
                     onChange={handleChange}
-                    required
                     className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                 </div>
               </div>
 
-              {/* Stop Loss Row */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Stop Loss (Pips)</label>
-                  <input
-                    type="number"
-                    placeholder="20"
-                    step="1"
-                    value={stopLossPips}
-                    onChange={(e) => setStopLossPips(e.target.value)}
-                    className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Risk Amount</label>
-                  <div className="w-full p-3 rounded-lg bg-gray-600 text-white border border-gray-500">
-                    <span className="text-lg font-bold text-purple-400">
-                      ${metrics.riskAmount.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
+              {/* Optional: Lot Size for Reference */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Lot Size (Optional)
+                  <span className="text-xs text-gray-400 ml-2">(For reference only)</span>
+                </label>
+                <input
+                  type="number"
+                  name="lotSize"
+                  placeholder="0.01, 0.1, 1.0"
+                  step="0.01"
+                  min="0.01"
+                  value={formData.lotSize || ''}
+                  onChange={handleChange}
+                  className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
               </div>
 
-              {/* Real-time Calculated Metrics Display */}
+              {/* Trade Summary for Manual Journaling */}
               <div className="bg-gray-700/50 p-4 rounded-lg border border-gray-600">
                 <h3 className="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  Real-time Trade Calculations
+                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                  Trade Summary
                 </h3>
                 
-                {/* Primary Metrics */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                {/* Manual Input Summary */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
                   <div className="text-center">
-                    <p className="text-xs text-gray-400">Profit/Loss (USD)</p>
-                    <p className={`text-lg font-bold ${metrics.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {metrics.profit >= 0 ? '+' : ''}${metrics.profit.toFixed(2)}
+                    <p className="text-xs text-gray-400">Currency Pair</p>
+                    <p className="text-sm font-semibold text-white">{formData.symbol || 'N/A'}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-400">Direction</p>
+                    <p className={`text-sm font-semibold ${tradeDirection === 'BUY' ? 'text-green-400' : 'text-red-400'}`}>
+                      {tradeDirection}
                     </p>
                   </div>
                   <div className="text-center">
-                    <p className="text-xs text-gray-400">Position Size</p>
-                    <p className="text-lg font-bold text-blue-400">
-                      ${metrics.positionSize.toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs text-gray-400">Pips Moved</p>
-                    <p className="text-lg font-bold text-yellow-400">
-                      {metrics.pips.toFixed(1)}
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs text-gray-400">Pip Value</p>
-                    <p className="text-lg font-bold text-purple-400">
-                      ${metrics.pipValue.toFixed(2)}
+                    <p className="text-xs text-gray-400">Profit/Loss</p>
+                    <p className={`text-sm font-bold ${(formData.profit || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {formData.profit ? (formData.profit >= 0 ? '+' : '') + '$' + parseFloat(formData.profit).toFixed(2) : '$0.00'}
                     </p>
                   </div>
                 </div>
 
-                {/* Risk Management Metrics */}
-                {stopLossPips && (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-600/50">
+                {/* Risk Information */}
+                {formData.riskAmount && (
+                  <div className="grid grid-cols-2 gap-4 mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-600/50">
                     <div className="text-center">
                       <p className="text-xs text-gray-400">Risk Amount</p>
-                      <p className="text-lg font-bold text-red-400">
-                        ${metrics.riskAmount.toFixed(2)}
+                      <p className="text-sm font-bold text-red-400">
+                        ${parseFloat(formData.riskAmount || 0).toFixed(2)}
                       </p>
                     </div>
                     <div className="text-center">
-                      <p className="text-xs text-gray-400">Risk/Reward Ratio</p>
-                      <p className={`text-lg font-bold ${metrics.riskRewardRatio >= 1 ? 'text-green-400' : 'text-yellow-400'}`}>
-                        1:{metrics.riskRewardRatio.toFixed(2)}
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs text-gray-400">Risk %</p>
-                      <p className={`text-lg font-bold ${metrics.riskPercentage <= 2 ? 'text-green-400' : metrics.riskPercentage <= 5 ? 'text-yellow-400' : 'text-red-400'}`}>
-                        {metrics.riskPercentage.toFixed(1)}%
+                      <p className="text-xs text-gray-400">Risk/Reward</p>
+                      <p className="text-sm font-bold text-blue-400">
+                        {formData.profit && formData.riskAmount ? 
+                          (Math.abs(parseFloat(formData.profit)) / parseFloat(formData.riskAmount)).toFixed(2) : 
+                          'N/A'
+                        }
                       </p>
                     </div>
                   </div>
                 )}
 
-                {/* Trade Information */}
-                <div className="mt-3 pt-3 border-t border-gray-600">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                    <div>
-                      <p className="text-xs text-gray-400">Account Type</p>
-                      <p className="text-sm font-semibold text-white">{ACCOUNT_TYPES[accountType]?.name}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-400">Trade Direction</p>
-                      <p className={`text-sm font-semibold ${tradeDirection === 'BUY' ? 'text-green-400' : 'text-red-400'}`}>
-                        {tradeDirection}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-400">Currency Pair</p>
-                      <p className="text-sm font-semibold text-white">{formData.symbol || 'N/A'}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Risk Assessment */}
-                {stopLossPips && (
+                {/* Reference Information */}
+                {(formData.entry || formData.exit || formData.lotSize) && (
                   <div className="mt-3 pt-3 border-t border-gray-600">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-400">Risk Assessment:</span>
-                      <div className="flex items-center gap-2">
-                        {metrics.riskPercentage <= 2 ? (
-                          <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs font-medium border border-green-500/30">
-                            ✅ Low Risk
-                          </span>
-                        ) : metrics.riskPercentage <= 5 ? (
-                          <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded text-xs font-medium border border-yellow-500/30">
-                            ⚠️ Medium Risk
-                          </span>
-                        ) : (
-                          <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs font-medium border border-red-500/30">
-                            🚨 High Risk
-                          </span>
-                        )}
-                        {metrics.riskRewardRatio >= 2 && (
-                          <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs font-medium border border-blue-500/30">
-                            🎯 Good R/R
-                          </span>
-                        )}
-                      </div>
+                    <p className="text-xs text-gray-400 mb-2">Reference Information:</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center text-xs">
+                      {formData.entry && (
+                        <div>
+                          <p className="text-gray-400">Entry Price</p>
+                          <p className="text-white font-medium">{formData.entry}</p>
+                        </div>
+                      )}
+                      {formData.exit && (
+                        <div>
+                          <p className="text-gray-400">Exit Price</p>
+                          <p className="text-white font-medium">{formData.exit}</p>
+                        </div>
+                      )}
+                      {formData.lotSize && (
+                        <div>
+                          <p className="text-gray-400">Lot Size</p>
+                          <p className="text-white font-medium">{formData.lotSize}</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -623,7 +592,7 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
                 <textarea
                   name="notes"
                   placeholder="Enter trade analysis, strategy, or observations... (Ctrl+V to paste screenshots)"
-                  value={formData.notes}
+                  value={formData.notes || ''}
                   onChange={handleChange}
                   onPaste={handlePaste}
                   rows="3"
@@ -671,26 +640,36 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
           )}
 
           {/* Action Buttons */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-600">
-            <button
-              type="button"
-              onClick={() => setShowModal(false)}
-              className="px-6 py-3 bg-gray-600 hover:bg-gray-500 text-white rounded-lg font-medium transition-colors duration-200"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center gap-2"
-            >
-              {loading && (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              )}
-              {loading ? 'Adding Trade...' : 'Add Trade'}
-            </button>
+          <div className="flex justify-between items-center pt-4 border-t border-gray-600">
+            {/* Left side - Auto-save indicator */}
+            <div className="flex items-center gap-2 text-xs text-gray-400">
+              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+              Auto-save to performance metrics enabled
+            </div>
+
+            {/* Right side - Cancel and Submit */}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="px-6 py-3 bg-gray-600 hover:bg-gray-500 text-white rounded-lg font-medium transition-colors duration-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center gap-2"
+              >
+                {loading && (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                )}
+                {loading ? 'Adding Trade...' : 'Add Trade'}
+              </button>
+            </div>
           </div>
         </form>
+
       </div>
     </div>
   );

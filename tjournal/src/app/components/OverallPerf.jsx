@@ -4,7 +4,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { auth, db } from "../lib/firebase";
-import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
+import { collection, query, where, onSnapshot, orderBy, doc, getDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import CoachAi from "./CoachAi";
 import {
@@ -66,7 +66,23 @@ const groupBy = (arr, key) => arr.reduce((acc, item) => {
   return acc;
 }, {});
 
-const peso = (n) => n.toLocaleString("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 });
+// Dynamic currency formatter based on user settings
+const formatCurrency = (n, currency = 'USD') => {
+  const currencyMap = {
+    'USD': { locale: 'en-US', currency: 'USD' },
+    'EUR': { locale: 'en-EU', currency: 'EUR' },
+    'GBP': { locale: 'en-GB', currency: 'GBP' },
+    'JPY': { locale: 'ja-JP', currency: 'JPY' }
+  };
+  
+  const config = currencyMap[currency] || currencyMap['USD'];
+  return n.toLocaleString(config.locale, { 
+    style: "currency", 
+    currency: config.currency, 
+    maximumFractionDigits: currency === 'JPY' ? 0 : 2 
+  });
+};
+
 const pct = (n) => `${(n * 100).toFixed(1)}%`;
 const formatDuration = (minutes) => {
   if (minutes < 60) return `${minutes}m`;
@@ -100,6 +116,13 @@ export default function PerformancePage() {
   const [user, setUser] = useState(null);
   const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [userSettings, setUserSettings] = useState(null);
+  
+  // Helper function to format currency with user's preferred currency
+  const formatMoney = (amount) => {
+    const currency = userSettings?.display?.currency || 'USD';
+    return formatCurrency(amount, currency);
+  };
   
   const [strategy, setStrategy] = useState("ALL");
   const [session, setSession] = useState("ALL");
@@ -119,11 +142,28 @@ export default function PerformancePage() {
   const [start, setStart] = useState(defaultRange.start);
   const [end, setEnd] = useState(defaultRange.end);
 
+  // Load user settings
+  const loadUserSettings = async (userId) => {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        setUserSettings(userData.settings || { display: { currency: 'USD' } });
+      } else {
+        setUserSettings({ display: { currency: 'USD' } });
+      }
+    } catch (error) {
+      console.error('Error loading user settings:', error);
+      setUserSettings({ display: { currency: 'USD' } });
+    }
+  };
+
   // Load user and trades data
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
       if (currentUser) {
         setUser(currentUser);
+        loadUserSettings(currentUser.uid);
         loadTrades(currentUser.uid);
       } else {
         router.push('/auth/login');
@@ -144,7 +184,35 @@ export default function PerformancePage() {
         id: doc.id,
         ...doc.data()
       }));
-      setTrades(tradesData);
+      
+      // Load metrics data from localStorage and merge with trades
+      const metricsData = JSON.parse(localStorage.getItem('tradingMetricsForPerformance') || '[]');
+      
+      // Convert metrics data to trade format and merge
+      const metricsAsTrades = metricsData.map(metric => ({
+        id: `metric_${metric.id}`,
+        userId: userId,
+        symbol: metric.symbol,
+        profit: metric.profit,
+        riskAmount: metric.riskAmount,
+        entry: metric.entry,
+        exit: metric.exit,
+        lotSize: metric.lotSize,
+        notes: metric.notes,
+        tradeDirection: metric.tradeDirection,
+        accountType: metric.accountType,
+        date: new Date(metric.timestamp).toISOString(),
+        deviceTimeTimestamp: metric.deviceTimeTimestamp,
+        userTimezone: metric.userTimezone,
+        isMetricData: true // Flag to identify metrics data
+      }));
+      
+      // Combine trades and metrics data, sort by date
+      const allData = [...tradesData, ...metricsAsTrades].sort((a, b) => 
+        new Date(b.date) - new Date(a.date)
+      );
+      
+      setTrades(allData);
       setLoading(false);
     }, (error) => {
       console.error("Error loading trades:", error);
@@ -370,7 +438,7 @@ export default function PerformancePage() {
         patterns.push({
           type: 'success',
           title: 'Top Performing Strategy',
-          message: `"${bestStrategy[0]}" generates ${peso(bestStrategy[1].pnl / bestStrategy[1].total)} average profit per trade`,
+          message: `"${bestStrategy[0]}" generates ${formatMoney(bestStrategy[1].pnl / bestStrategy[1].total)} average profit per trade`,
           action: 'Consider increasing allocation to this strategy',
           confidence: 90
         });
@@ -497,7 +565,7 @@ export default function PerformancePage() {
         predictions.push({
           type: 'success',
           title: 'Positive Monthly Outlook',
-          message: `Based on recent performance, you could generate ${peso(monthlyPnL)} this month`,
+          message: `Based on recent performance, you could generate ${formatMoney(monthlyPnL)} this month`,
           action: 'Maintain current strategy, but don\'t increase risk too quickly',
           confidence: 70
         });
@@ -678,100 +746,101 @@ export default function PerformancePage() {
 
       {/* PROFESSIONAL HEADER */}
       <div className="sticky top-0 z-20 bg-gradient-to-r from-gray-900/95 via-gray-800/95 to-gray-900/95 backdrop-blur-xl border-b border-gray-700/60 shadow-lg relative">
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
           {/* Main Header Row */}
-          <div className="flex items-center justify-between py-4 sm:py-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-3 sm:py-4 lg:py-5 gap-3 sm:gap-4">
             {/* Professional Title Section */}
-            <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-              <div className="relative">
-                <div className="p-3 sm:p-3.5 rounded-xl sm:rounded-2xl bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-600 text-white shadow-xl flex-shrink-0">
-                  <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 lg:w-7 lg:h-7" />
+            <div className="flex items-center gap-2 sm:gap-3 lg:gap-4 min-w-0 flex-1 w-full sm:w-auto">
+              <div className="relative flex-shrink-0">
+                <div className="p-2.5 sm:p-3 lg:p-3.5 rounded-lg sm:rounded-xl lg:rounded-2xl bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-600 text-white shadow-xl">
+                  <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 xl:w-7 xl:h-7" />
                 </div>
-                <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-gray-900 animate-pulse"></div>
+                <div className="absolute -top-1 -right-1 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-green-400 rounded-full border-2 border-gray-900 animate-pulse"></div>
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white truncate">Trading Performance Analytics</h1>
-                  <div className="hidden sm:flex items-center gap-1 px-2 py-1 bg-green-500/20 rounded-full">
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-1">
+                  <h1 className="text-lg sm:text-xl lg:text-2xl xl:text-3xl font-bold text-white truncate">Trading Performance Analytics</h1>
+                  <div className="flex items-center gap-1 px-2 py-1 bg-green-500/20 rounded-full w-fit">
+                    <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-green-400 rounded-full animate-pulse"></div>
                     <span className="text-xs text-green-400 font-medium">LIVE</span>
                   </div>
                 </div>
-                <p className="text-gray-300 text-sm sm:text-base hidden sm:block font-medium">
+                <p className="text-gray-300 text-xs sm:text-sm lg:text-base font-medium mb-1 sm:mb-0">
                   Professional-grade trading analytics & performance insights
                 </p>
-                <div className="flex items-center gap-4 mt-1 text-xs text-gray-400">
-                  <span className="hidden md:inline">Last updated: {new Date().toLocaleTimeString()}</span>
-                  <span>Portfolio ID: {user?.uid?.slice(-8) || 'N/A'}</span>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs text-gray-400">
+                  <span className="hidden sm:inline">Last updated: {new Date().toLocaleTimeString()}</span>
+                  <span className="text-xs sm:text-xs">Portfolio ID: {user?.uid?.slice(-8) || 'N/A'}</span>
                 </div>
               </div>
             </div>
 
             {/* Trading Tools & Quick Actions */}
-            <div className="flex-shrink-0 ml-3 sm:ml-4">
-              <div className="flex items-center gap-2">
+            <div className="flex-shrink-0 w-full sm:w-auto">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <button
                   onClick={() => router.push('/addtrade')}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl text-xs sm:text-sm font-semibold hover:from-green-600 hover:to-emerald-600 transition-all duration-200 shadow-lg hover:shadow-xl"
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl text-xs sm:text-sm font-semibold hover:from-green-600 hover:to-emerald-600 transition-all duration-200 shadow-lg hover:shadow-xl flex-1 sm:flex-none"
                   title="Add New Trade"
                 >
-                  <div className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center">
+                  <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-white/20 flex items-center justify-center">
                     <span className="text-xs font-bold">+</span>
                   </div>
-                  <span className="hidden sm:inline">Add Trade</span>
+                  <span className="text-xs sm:text-sm">Add Trade</span>
                 </button>
                 
                 <button
                   onClick={() => router.push('/dashboard')}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-gray-700/60 text-gray-300 rounded-xl text-xs sm:text-sm font-semibold hover:bg-gray-600/60 hover:text-white transition-all duration-200 border border-gray-600/40"
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-700/60 text-gray-300 rounded-xl text-xs sm:text-sm font-semibold hover:bg-gray-600/60 hover:text-white transition-all duration-200 border border-gray-600/40 flex-1 sm:flex-none"
                   title="Go to Dashboard"
                 >
-                  <Activity className="w-4 h-4" />
-                  <span className="hidden sm:inline">Dashboard</span>
+                  <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <span className="text-xs sm:text-sm">Dashboard</span>
                 </button>
               </div>
             </div>
           </div>
 
           {/* Professional Filters Section */}
-          <div className="pb-4 sm:pb-5">
-            <div className="bg-gray-800/40 rounded-2xl p-4 sm:p-5 border border-gray-700/50 shadow-lg">
-              <div className="flex items-center gap-2 mb-4">
+          <div className="pb-3 sm:pb-4 lg:pb-5">
+            <div className="bg-gray-800/40 rounded-xl sm:rounded-2xl p-3 sm:p-4 lg:p-5 border border-gray-700/50 shadow-lg">
+              <div className="flex items-center gap-2 mb-3 sm:mb-4">
                 <div className="p-1.5 rounded-lg bg-purple-500/20">
-                  <Filter className="w-4 h-4 text-purple-400" />
+                  <Filter className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400" />
                 </div>
-                <h3 className="text-sm font-semibold text-white">Advanced Filters</h3>
+                <h3 className="text-xs sm:text-sm font-semibold text-white">Advanced Filters</h3>
                 <div className="flex-1 h-px bg-gradient-to-r from-gray-600/50 to-transparent"></div>
               </div>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-5">
                 {/* Date Range Filter */}
-                <div className="space-y-3">
+                <div className="space-y-2 sm:space-y-3">
                   <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                    <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-400 flex-shrink-0" />
                     <span className="text-xs sm:text-sm text-gray-300 font-semibold">Date Range</span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                     <input
                       type="date"
                       value={start}
                       onChange={(e) => setStart(e.target.value)}
-                      className="bg-gray-700/60 border border-gray-600/60 rounded-xl px-3 py-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex-1 min-w-0 transition-all"
+                      className="bg-gray-700/60 border border-gray-600/60 rounded-lg sm:rounded-xl px-2.5 sm:px-3 py-2 sm:py-2.5 text-xs sm:text-sm text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex-1 min-w-0 transition-all"
                     />
-                    <span className="text-gray-400 text-sm font-medium">to</span>
+                    <span className="text-gray-400 text-xs sm:text-sm font-medium text-center sm:hidden">to</span>
+                    <span className="text-gray-400 text-xs sm:text-sm font-medium hidden sm:inline">to</span>
                     <input
                       type="date"
                       value={end}
                       onChange={(e) => setEnd(e.target.value)}
-                      className="bg-gray-700/60 border border-gray-600/60 rounded-xl px-3 py-2.5 text-sm text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex-1 min-w-0 transition-all"
+                      className="bg-gray-700/60 border border-gray-600/60 rounded-lg sm:rounded-xl px-2.5 sm:px-3 py-2 sm:py-2.5 text-xs sm:text-sm text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex-1 min-w-0 transition-all"
                     />
                   </div>
                 </div>
 
                 {/* Year Filter */}
-                <div className="space-y-3">
+                <div className="space-y-2 sm:space-y-3">
                   <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                    <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400 flex-shrink-0" />
                     <span className="text-xs sm:text-sm text-gray-300 font-semibold">Year</span>
                   </div>
                   <div className="space-y-2">
@@ -787,7 +856,7 @@ export default function PerformancePage() {
                       All Years
                     </button>
                     {/* Year Buttons Grid */}
-                    <div className="grid grid-cols-2 gap-1.5">
+                    <div className="grid grid-cols-3 sm:grid-cols-2 gap-1 sm:gap-1.5">
                       {Array.from({ length: 6 }, (_, i) => {
                         const year = new Date().getFullYear() - i;
                         const isSelected = selectedYear === year;
@@ -795,7 +864,7 @@ export default function PerformancePage() {
                           <button
                             key={year}
                             onClick={() => setSelectedYear(year)}
-                            className={`px-2 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 ${
+                            className={`px-1.5 sm:px-2 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 ${
                               isSelected
                                 ? "bg-purple-500 text-white shadow-md ring-2 ring-purple-400/50"
                                 : "bg-gray-700/60 text-gray-300 hover:bg-gray-600/60 hover:text-white border border-gray-600/60"
@@ -810,15 +879,15 @@ export default function PerformancePage() {
                 </div>
 
                 {/* Strategy Filter */}
-                <div className="space-y-3">
+                <div className="space-y-2 sm:space-y-3">
                   <div className="flex items-center gap-2">
-                    <Brain className="w-4 h-4 text-green-400 flex-shrink-0" />
+                    <Brain className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-400 flex-shrink-0" />
                     <span className="text-xs sm:text-sm text-gray-300 font-semibold">Trading Strategy</span>
                   </div>
                   <select
                     value={strategy}
                     onChange={(e) => setStrategy(e.target.value)}
-                    className="w-full bg-gray-700/60 border border-gray-600/60 rounded-xl px-3 py-2.5 text-sm text-white focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                    className="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg sm:rounded-xl px-2.5 sm:px-3 py-2 sm:py-2.5 text-xs sm:text-sm text-white focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
                   >
                     {strategies.map((s, index) => (
                       <option key={`strategy-${index}-${s}`} value={s}>{s}</option>
@@ -827,15 +896,15 @@ export default function PerformancePage() {
                 </div>
 
                 {/* Session Filter */}
-                <div className="space-y-3">
+                <div className="space-y-2 sm:space-y-3">
                   <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                    <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-400 flex-shrink-0" />
                     <span className="text-xs sm:text-sm text-gray-300 font-semibold">Trading Session</span>
                   </div>
                   <select
                     value={session}
                     onChange={(e) => setSession(e.target.value)}
-                    className="w-full bg-gray-700/60 border border-gray-600/60 rounded-xl px-3 py-2.5 text-sm text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
+                    className="w-full bg-gray-700/60 border border-gray-600/60 rounded-lg sm:rounded-xl px-2.5 sm:px-3 py-2 sm:py-2.5 text-xs sm:text-sm text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
                   >
                     {sessions.map((s, index) => (
                       <option key={`session-${index}-${s}`} value={s}>{s}</option>
@@ -844,9 +913,9 @@ export default function PerformancePage() {
                 </div>
 
                 {/* Quick Actions & Export */}
-                <div className="space-y-3">
+                <div className="space-y-2 sm:space-y-3">
                   <div className="flex items-center gap-2">
-                    <Settings className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                    <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400 flex-shrink-0" />
                     <span className="text-xs sm:text-sm text-gray-300 font-semibold">Quick Actions</span>
                   </div>
                   <div className="space-y-2">
@@ -871,10 +940,10 @@ export default function PerformancePage() {
                         a.click();
                         URL.revokeObjectURL(url);
                       }}
-                      className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-xl text-xs font-semibold transition-all duration-200 border border-blue-500/30"
+                      className="w-full flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg sm:rounded-xl text-xs font-semibold transition-all duration-200 border border-blue-500/30"
                     >
                       <ArrowUpRight className="w-3 h-3" />
-                      Export CSV
+                      <span className="text-xs">Export CSV</span>
                     </button>
                     <button
                       onClick={() => {
@@ -884,10 +953,10 @@ export default function PerformancePage() {
                         setSession("ALL");
                         setSelectedYear("ALL");
                       }}
-                      className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-600/20 hover:bg-gray-600/30 text-gray-300 rounded-xl text-xs font-semibold transition-all duration-200 border border-gray-600/30"
+                      className="w-full flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 bg-gray-600/20 hover:bg-gray-600/30 text-gray-300 rounded-lg sm:rounded-xl text-xs font-semibold transition-all duration-200 border border-gray-600/30"
                     >
                       <Settings className="w-3 h-3" />
-                      Reset Filters
+                      <span className="text-xs">Reset Filters</span>
                     </button>
                   </div>
                 </div>
@@ -897,21 +966,21 @@ export default function PerformancePage() {
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-4 py-8 space-y-8 relative z-10">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-6 lg:space-y-8 relative z-10">
         {/* PROFESSIONAL KPI DASHBOARD */}
-        <div className="space-y-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-gradient-to-r from-purple-500/20 to-indigo-500/20">
-              <BarChart3 className="w-5 h-5 text-purple-400" />
+        <div className="space-y-4 sm:space-y-6">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 rounded-lg bg-gradient-to-r from-purple-500/20 to-indigo-500/20">
+              <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />
             </div>
-            <h2 className="text-xl font-bold text-white">Performance Metrics</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-white">Performance Metrics</h2>
             <div className="flex-1 h-px bg-gradient-to-r from-gray-600/50 to-transparent"></div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 lg:gap-6">
             <ProfessionalKPICard
               title="Total P&L"
-              value={peso(kpis.totalPnL || 0)}
+              value={formatMoney(kpis.totalPnL || 0)}
               icon={kpis.totalPnL >= 0 ? TrendingUp : TrendingDown}
               subtitle={kpis.totalPnL >= 0 ? "Net Profit" : "Net Loss"}
               trend={kpis.totalPnL >= 0 ? "positive" : "negative"}
@@ -973,96 +1042,96 @@ export default function PerformancePage() {
         </div>
 
         {/* PROFESSIONAL INSIGHTS DASHBOARD */}
-        <div className="space-y-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-gradient-to-r from-blue-500/20 to-cyan-500/20">
-              <Zap className="w-5 h-5 text-blue-400" />
+        <div className="space-y-4 sm:space-y-6">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 rounded-lg bg-gradient-to-r from-blue-500/20 to-cyan-500/20">
+              <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" />
             </div>
-            <h2 className="text-xl font-bold text-white">Trading Insights</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-white">Trading Insights</h2>
             <div className="flex-1 h-px bg-gradient-to-r from-gray-600/50 to-transparent"></div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
             {/* Best Trade */}
-            <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 backdrop-blur-lg rounded-2xl p-6 border border-green-500/20 shadow-lg hover:shadow-xl transition-all duration-300">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2.5 rounded-xl bg-green-500/20">
-                  <ArrowUpRight className="w-5 h-5 text-green-400" />
+            <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 backdrop-blur-lg rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-green-500/20 shadow-lg hover:shadow-xl transition-all duration-300">
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-green-500/20">
+                  <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Best Trade</h3>
+                  <h3 className="text-xs sm:text-sm font-semibold text-gray-300 uppercase tracking-wide">Best Trade</h3>
                   <p className="text-xs text-gray-500">Highest profit trade</p>
                 </div>
               </div>
-              <div className="text-2xl font-bold text-green-400 mb-1">{peso(kpis.bestTrade || 0)}</div>
+              <div className="text-xl sm:text-2xl font-bold text-green-400 mb-1">{formatMoney(kpis.bestTrade || 0)}</div>
               <div className="text-xs text-gray-400">Peak performance</div>
             </div>
 
             {/* Worst Trade */}
-            <div className="bg-gradient-to-br from-red-500/10 to-rose-500/10 backdrop-blur-lg rounded-2xl p-6 border border-red-500/20 shadow-lg hover:shadow-xl transition-all duration-300">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2.5 rounded-xl bg-red-500/20">
-                  <ArrowDownRight className="w-5 h-5 text-red-400" />
+            <div className="bg-gradient-to-br from-red-500/10 to-rose-500/10 backdrop-blur-lg rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-red-500/20 shadow-lg hover:shadow-xl transition-all duration-300">
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-red-500/20">
+                  <ArrowDownRight className="w-4 h-4 sm:w-5 sm:h-5 text-red-400" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Worst Trade</h3>
+                  <h3 className="text-xs sm:text-sm font-semibold text-gray-300 uppercase tracking-wide">Worst Trade</h3>
                   <p className="text-xs text-gray-500">Largest loss trade</p>
                 </div>
               </div>
-              <div className="text-2xl font-bold text-red-400 mb-1">{peso(kpis.worstTrade || 0)}</div>
+              <div className="text-xl sm:text-2xl font-bold text-red-400 mb-1">{formatMoney(kpis.worstTrade || 0)}</div>
               <div className="text-xs text-gray-400">Maximum drawdown</div>
             </div>
 
             {/* Average Confidence */}
-            <div className="bg-gradient-to-br from-blue-500/10 to-indigo-500/10 backdrop-blur-lg rounded-2xl p-6 border border-blue-500/20 shadow-lg hover:shadow-xl transition-all duration-300">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2.5 rounded-xl bg-blue-500/20">
-                  <Star className="w-5 h-5 text-blue-400" />
+            <div className="bg-gradient-to-br from-blue-500/10 to-indigo-500/10 backdrop-blur-lg rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-blue-500/20 shadow-lg hover:shadow-xl transition-all duration-300">
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-blue-500/20">
+                  <Star className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Avg Confidence</h3>
+                  <h3 className="text-xs sm:text-sm font-semibold text-gray-300 uppercase tracking-wide">Avg Confidence</h3>
                   <p className="text-xs text-gray-500">Trade confidence level</p>
                 </div>
               </div>
-              <div className="text-2xl font-bold text-blue-400 mb-1">{(kpis.avgConfidence || 0).toFixed(1)}/10</div>
+              <div className="text-xl sm:text-2xl font-bold text-blue-400 mb-1">{(kpis.avgConfidence || 0).toFixed(1)}/10</div>
               <div className="text-xs text-gray-400">Decision quality</div>
             </div>
 
             {/* Consecutive Wins */}
-            <div className="bg-gradient-to-br from-purple-500/10 to-violet-500/10 backdrop-blur-lg rounded-2xl p-6 border border-purple-500/20 shadow-lg hover:shadow-xl transition-all duration-300">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2.5 rounded-xl bg-purple-500/20">
-                  <Award className="w-5 h-5 text-purple-400" />
+            <div className="bg-gradient-to-br from-purple-500/10 to-violet-500/10 backdrop-blur-lg rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-purple-500/20 shadow-lg hover:shadow-xl transition-all duration-300">
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-purple-500/20">
+                  <Award className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Max Streak</h3>
+                  <h3 className="text-xs sm:text-sm font-semibold text-gray-300 uppercase tracking-wide">Max Streak</h3>
                   <p className="text-xs text-gray-500">Consecutive wins</p>
                 </div>
               </div>
-              <div className="text-2xl font-bold text-purple-400 mb-1">{kpis.consecutiveWins || 0}</div>
+              <div className="text-xl sm:text-2xl font-bold text-purple-400 mb-1">{kpis.consecutiveWins || 0}</div>
               <div className="text-xs text-gray-400">Winning streak</div>
             </div>
           </div>
         </div>
 
         {/* PROFESSIONAL CHARTS SECTION */}
-        <div className="space-y-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-gradient-to-r from-indigo-500/20 to-purple-500/20">
-              <BarChart3 className="w-5 h-5 text-indigo-400" />
+        <div className="space-y-4 sm:space-y-6">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 rounded-lg bg-gradient-to-r from-indigo-500/20 to-purple-500/20">
+              <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-400" />
             </div>
-            <h2 className="text-xl font-bold text-white">Analytics & Visualizations</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-white">Analytics & Visualizations</h2>
             <div className="flex-1 h-px bg-gradient-to-r from-gray-600/50 to-transparent"></div>
           </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
           {/* Equity Curve with Drawdown */}
           <EnhancedChartCard 
             title="Equity Curve" 
             description="Cumulative P&L with drawdown visualization"
             icon={TrendingUp}
           >
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={250}>
               <ComposedChart data={kpis.equitySeries} margin={{ left: 10, right: 10, top: 10, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#9CA3AF' }} />
@@ -1070,7 +1139,7 @@ export default function PerformancePage() {
                 <YAxis yAxisId="drawdown" orientation="right" tick={{ fontSize: 12, fill: '#9CA3AF' }} />
                 <Tooltip 
                   formatter={(value, name) => [
-                    name === 'equity' ? peso(Number(value)) : pct(Number(value)),
+                    name === 'equity' ? formatMoney(Number(value)) : pct(Number(value)),
                     name === 'equity' ? 'Equity' : 'Drawdown'
                   ]}
                   labelStyle={{ color: '#F9FAFB' }}
@@ -1117,13 +1186,13 @@ export default function PerformancePage() {
             description="P&L breakdown by month"
             icon={Calendar}
           >
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={250}>
               <BarChart data={monthlyPerf} margin={{ left: 10, right: 10, top: 10, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#9CA3AF' }} />
                 <YAxis tick={{ fontSize: 12, fill: '#9CA3AF' }} />
                 <Tooltip 
-                  formatter={(value) => [peso(Number(value)), 'P&L']}
+                  formatter={(value) => [formatMoney(Number(value)), 'P&L']}
                   labelStyle={{ color: '#F9FAFB' }}
                   contentStyle={{ 
                     backgroundColor: '#374151', 
@@ -1150,7 +1219,7 @@ export default function PerformancePage() {
             description="Trade outcome breakdown"
             icon={PieIcon}
           >
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie 
                   data={winLossPie} 
@@ -1180,23 +1249,23 @@ export default function PerformancePage() {
         </div>
 
         {/* ADVANCED ANALYTICS */}
-        <div className="space-y-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-gradient-to-r from-emerald-500/20 to-teal-500/20">
-              <Target className="w-5 h-5 text-emerald-400" />
+        <div className="space-y-4 sm:space-y-6">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 rounded-lg bg-gradient-to-r from-emerald-500/20 to-teal-500/20">
+              <Target className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
             </div>
-            <h2 className="text-xl font-bold text-white">Advanced Analytics</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-white">Advanced Analytics</h2>
             <div className="flex-1 h-px bg-gradient-to-r from-gray-600/50 to-transparent"></div>
           </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* R-Multiple Distribution */}
           <EnhancedChartCard 
             title="R-Multiple Distribution" 
             description="Risk/reward outcome analysis"
             icon={Target}
           >
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={250}>
               <BarChart data={rDist} margin={{ left: 10, right: 10, top: 10, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="bucket" tick={{ fontSize: 12, fill: '#9CA3AF' }} />
@@ -1224,7 +1293,7 @@ export default function PerformancePage() {
             description="P&L and win rate by strategy"
             icon={Brain}
           >
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={250}>
               <ComposedChart data={byStrategy} margin={{ left: 10, right: 10, top: 10, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="strategy" tick={{ fontSize: 12, fill: '#9CA3AF' }} />
@@ -1232,7 +1301,7 @@ export default function PerformancePage() {
                 <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12, fill: '#9CA3AF' }} />
                 <Tooltip 
                   formatter={(value, name) => [
-                    name === "pnl" ? peso(Number(value)) : pct(Number(value)),
+                    name === "pnl" ? formatMoney(Number(value)) : pct(Number(value)),
                     name === "pnl" ? "P&L" : "Win Rate"
                   ]}
                   labelStyle={{ color: '#F9FAFB' }}
@@ -1253,30 +1322,30 @@ export default function PerformancePage() {
         </div>
 
         {/* SESSION & CONFIDENCE ANALYSIS */}
-        <div className="space-y-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-gradient-to-r from-amber-500/20 to-orange-500/20">
-              <Clock className="w-5 h-5 text-amber-400" />
+        <div className="space-y-4 sm:space-y-6">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 rounded-lg bg-gradient-to-r from-amber-500/20 to-orange-500/20">
+              <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
             </div>
-            <h2 className="text-xl font-bold text-white">Session & Confidence Analysis</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-white">Session & Confidence Analysis</h2>
             <div className="flex-1 h-px bg-gradient-to-r from-gray-600/50 to-transparent"></div>
           </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Session Performance */}
           <EnhancedChartCard 
             title="Session Performance" 
             description="Trading performance by session"
             icon={Clock}
           >
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={250}>
               <BarChart data={bySession} margin={{ left: 10, right: 10, top: 10, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="session" tick={{ fontSize: 12, fill: '#9CA3AF' }} />
                 <YAxis tick={{ fontSize: 12, fill: '#9CA3AF' }} />
                 <Tooltip 
                   formatter={(value, name) => [
-                    name === "pnl" ? peso(Number(value)) : pct(Number(value)),
+                    name === "pnl" ? formatMoney(Number(value)) : pct(Number(value)),
                     name === "pnl" ? "P&L" : "Win Rate"
                   ]}
                   labelStyle={{ color: '#F9FAFB' }}
@@ -1298,14 +1367,14 @@ export default function PerformancePage() {
             description="How confidence correlates with results"
             icon={Star}
           >
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={250}>
               <ScatterChart data={confidenceVsPerformance} margin={{ left: 10, right: 10, top: 10, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="confidence" name="Confidence" tick={{ fontSize: 12, fill: '#9CA3AF' }} />
                 <YAxis dataKey="avgPnL" name="Avg P&L" tick={{ fontSize: 12, fill: '#9CA3AF' }} />
                 <Tooltip 
                   formatter={(value, name) => [
-                    name === "avgPnL" ? peso(Number(value)) : value,
+                    name === "avgPnL" ? formatMoney(Number(value)) : value,
                     name === "avgPnL" ? "Avg P&L" : "Confidence"
                   ]}
                   labelStyle={{ color: '#F9FAFB' }}
@@ -1324,16 +1393,16 @@ export default function PerformancePage() {
         </div>
 
         {/* PROFESSIONAL TABLES SECTION */}
-        <div className="space-y-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-gradient-to-r from-rose-500/20 to-pink-500/20">
-              <TrendingUp className="w-5 h-5 text-rose-400" />
+        <div className="space-y-4 sm:space-y-6">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 rounded-lg bg-gradient-to-r from-rose-500/20 to-pink-500/20">
+              <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-rose-400" />
             </div>
-            <h2 className="text-xl font-bold text-white">Performance Tables</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-white">Performance Tables</h2>
             <div className="flex-1 h-px bg-gradient-to-r from-gray-600/50 to-transparent"></div>
           </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Top Symbols Table */}
           <EnhancedTableCard 
             title="Top Symbols" 
@@ -1341,31 +1410,31 @@ export default function PerformancePage() {
             icon={TrendingUp}
           >
             <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs sm:text-sm">
               <thead>
                   <tr className="text-left text-gray-400 border-b border-gray-600/30">
-                    <th className="py-3 px-2 font-medium">Symbol</th>
-                    <th className="py-3 px-2 font-medium">Trades</th>
-                    <th className="py-3 px-2 font-medium">P&L</th>
-                    <th className="py-3 px-2 font-medium">Win Rate</th>
-                    <th className="py-3 px-2 font-medium">Avg R</th>
+                    <th className="py-2 sm:py-3 px-1 sm:px-2 font-medium">Symbol</th>
+                    <th className="py-2 sm:py-3 px-1 sm:px-2 font-medium">Trades</th>
+                    <th className="py-2 sm:py-3 px-1 sm:px-2 font-medium">P&L</th>
+                    <th className="py-2 sm:py-3 px-1 sm:px-2 font-medium">Win Rate</th>
+                    <th className="py-2 sm:py-3 px-1 sm:px-2 font-medium">Avg R</th>
                 </tr>
               </thead>
               <tbody>
                   {bySymbol.map((row, index) => (
                     <tr key={row.symbol} className="border-b border-gray-600/30 hover:bg-gray-700/30 transition-colors">
-                      <td className="py-3 px-2 font-medium text-white">{row.symbol}</td>
-                      <td className="py-3 px-2 text-gray-400">{row.trades}</td>
-                      <td className={`py-3 px-2 font-medium ${row.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {peso(row.pnl)}
+                      <td className="py-2 sm:py-3 px-1 sm:px-2 font-medium text-white text-xs sm:text-sm">{row.symbol}</td>
+                      <td className="py-2 sm:py-3 px-1 sm:px-2 text-gray-400 text-xs sm:text-sm">{row.trades}</td>
+                      <td className={`py-2 sm:py-3 px-1 sm:px-2 font-medium text-xs sm:text-sm ${row.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {formatMoney(row.pnl)}
                       </td>
-                      <td className="py-3 px-2">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${row.winRate > 0.5 ? 'bg-green-400' : 'bg-red-400'}`} />
-                          {pct(row.winRate)}
+                      <td className="py-2 sm:py-3 px-1 sm:px-2">
+                        <div className="flex items-center gap-1 sm:gap-2">
+                          <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${row.winRate > 0.5 ? 'bg-green-400' : 'bg-red-400'}`} />
+                          <span className="text-xs sm:text-sm">{pct(row.winRate)}</span>
                         </div>
                       </td>
-                      <td className="py-3 px-2 text-gray-400">{row.avgR.toFixed(2)}R</td>
+                      <td className="py-2 sm:py-3 px-1 sm:px-2 text-gray-400 text-xs sm:text-sm">{row.avgR.toFixed(2)}R</td>
                   </tr>
                 ))}
               </tbody>
@@ -1380,14 +1449,14 @@ export default function PerformancePage() {
             icon={AlertTriangle}
           >
             <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs sm:text-sm">
               <thead>
                   <tr className="text-left text-gray-400 border-b border-gray-600/30">
-                    <th className="py-3 px-2 font-medium">Date</th>
-                    <th className="py-3 px-2 font-medium">Symbol</th>
-                    <th className="py-3 px-2 font-medium">R</th>
-                    <th className="py-3 px-2 font-medium">P&L</th>
-                    <th className="py-3 px-2 font-medium">Strategy</th>
+                    <th className="py-2 sm:py-3 px-1 sm:px-2 font-medium">Date</th>
+                    <th className="py-2 sm:py-3 px-1 sm:px-2 font-medium">Symbol</th>
+                    <th className="py-2 sm:py-3 px-1 sm:px-2 font-medium">R</th>
+                    <th className="py-2 sm:py-3 px-1 sm:px-2 font-medium">P&L</th>
+                    <th className="py-2 sm:py-3 px-1 sm:px-2 font-medium">Strategy</th>
                 </tr>
               </thead>
               <tbody>
@@ -1397,17 +1466,17 @@ export default function PerformancePage() {
                   .slice(0, 5)
                   .map((t) => (
                       <tr key={t.id} className="border-b border-gray-600/30 hover:bg-gray-700/30 transition-colors">
-                        <td className="py-3 px-2 text-gray-400">{t.date}</td>
-                        <td className="py-3 px-2 font-medium text-white">{t.symbol}</td>
-                        <td className="py-3 px-2">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        <td className="py-2 sm:py-3 px-1 sm:px-2 text-gray-400 text-xs sm:text-sm">{t.date}</td>
+                        <td className="py-2 sm:py-3 px-1 sm:px-2 font-medium text-white text-xs sm:text-sm">{t.symbol}</td>
+                        <td className="py-2 sm:py-3 px-1 sm:px-2">
+                          <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full text-xs font-medium ${
                             t.r >= 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
                           }`}>
                             {t.r.toFixed(2)}R
                           </span>
                         </td>
-                        <td className="py-3 px-2 font-medium text-red-400">{peso(t.pnl)}</td>
-                        <td className="py-3 px-2 text-gray-400">{t.strategy}</td>
+                        <td className="py-2 sm:py-3 px-1 sm:px-2 font-medium text-red-400 text-xs sm:text-sm">{formatMoney(t.pnl)}</td>
+                        <td className="py-2 sm:py-3 px-1 sm:px-2 text-gray-400 text-xs sm:text-sm">{t.strategy}</td>
                     </tr>
                   ))}
               </tbody>
@@ -1418,7 +1487,7 @@ export default function PerformancePage() {
 
 
           {/* AI Trading Coach Component */}
-          <CoachAi kpis={kpis} filtered={filtered} peso={peso} />
+          <CoachAi kpis={kpis} filtered={filtered} currencyFormatter={formatMoney} />
         </div>
       </main>
     </div>
@@ -1437,22 +1506,22 @@ function ProfessionalKPICard({ title, value, subtitle, icon: Icon, trend, color,
 
   return (
     <motion.div
-      className="group relative bg-gradient-to-br from-gray-800/90 to-gray-900/90 backdrop-blur-lg rounded-2xl p-6 border border-gray-700/50 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105"
+      className="group relative bg-gradient-to-br from-gray-800/90 to-gray-900/90 backdrop-blur-lg rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-gray-700/50 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
       {/* Gradient overlay on hover */}
-      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-indigo-500/5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-indigo-500/5 rounded-xl sm:rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
       
       <div className="relative z-10">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3 sm:mb-4">
           <div className="relative">
-            <div className="p-3 rounded-xl shadow-lg" style={{ backgroundColor: `${color}20` }}>
-              <Icon className="w-6 h-6" style={{ color }} />
+            <div className="p-2 sm:p-3 rounded-lg sm:rounded-xl shadow-lg" style={{ backgroundColor: `${color}20` }}>
+              <Icon className="w-5 h-5 sm:w-6 sm:h-6" style={{ color }} />
             </div>
             {change && (
-              <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+              <div className="absolute -top-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 bg-green-500 rounded-full flex items-center justify-center">
                 <span className="text-xs text-white font-bold">{change}</span>
               </div>
             )}
@@ -1460,19 +1529,19 @@ function ProfessionalKPICard({ title, value, subtitle, icon: Icon, trend, color,
           {getTrendIcon()}
         </div>
         
-        <div className="space-y-2">
+        <div className="space-y-1 sm:space-y-2">
           <div className="flex items-center justify-between">
-            <div className="text-sm font-semibold text-gray-300 uppercase tracking-wide">{title}</div>
-            <div className="text-xs text-gray-500 bg-gray-700/50 px-2 py-1 rounded-full">
+            <div className="text-xs sm:text-sm font-semibold text-gray-300 uppercase tracking-wide">{title}</div>
+            <div className="text-xs text-gray-500 bg-gray-700/50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">
               {trend === "positive" ? "Good" : trend === "negative" ? "Poor" : "Neutral"}
             </div>
           </div>
           
-          <div className="text-2xl sm:text-3xl font-bold text-white mb-1">{value}</div>
+          <div className="text-lg sm:text-2xl lg:text-3xl font-bold text-white mb-1">{value}</div>
           
-          <div className="text-sm text-gray-400 font-medium">{subtitle}</div>
+          <div className="text-xs sm:text-sm text-gray-400 font-medium">{subtitle}</div>
           
-          <div className="text-xs text-gray-500 leading-relaxed">{description}</div>
+          <div className="text-xs text-gray-500 leading-relaxed hidden sm:block">{description}</div>
         </div>
       </div>
     </motion.div>
@@ -1511,21 +1580,21 @@ function EnhancedKPICard({ title, value, subtitle, icon: Icon, trend, color }) {
 function EnhancedChartCard({ title, description, icon: Icon, children }) {
   return (
     <motion.div
-      className="bg-gray-800/80 backdrop-blur-lg rounded-2xl p-6 border border-gray-700/50 shadow-lg hover:shadow-xl transition-all duration-200"
+      className="bg-gray-800/80 backdrop-blur-lg rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-gray-700/50 shadow-lg hover:shadow-xl transition-all duration-200"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 rounded-lg bg-purple-500/20">
-          <Icon className="w-5 h-5 text-purple-400" />
+      <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+        <div className="p-1.5 sm:p-2 rounded-lg bg-purple-500/20">
+          <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-white">{title}</h3>
-          <p className="text-sm text-gray-400">{description}</p>
+          <h3 className="text-sm sm:text-lg font-semibold text-white">{title}</h3>
+          <p className="text-xs sm:text-sm text-gray-400">{description}</p>
         </div>
       </div>
-      <div className="h-[300px]">{children}</div>
+      <div className="h-[250px]">{children}</div>
     </motion.div>
   );
 }
@@ -1533,18 +1602,18 @@ function EnhancedChartCard({ title, description, icon: Icon, children }) {
 function EnhancedTableCard({ title, description, icon: Icon, children }) {
   return (
     <motion.div
-      className="bg-gray-800/80 backdrop-blur-lg rounded-2xl p-6 border border-gray-700/50 shadow-lg hover:shadow-xl transition-all duration-200"
+      className="bg-gray-800/80 backdrop-blur-lg rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-gray-700/50 shadow-lg hover:shadow-xl transition-all duration-200"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 rounded-lg bg-green-500/20">
-          <Icon className="w-5 h-5 text-green-400" />
+      <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+        <div className="p-1.5 sm:p-2 rounded-lg bg-green-500/20">
+          <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-white">{title}</h3>
-          <p className="text-sm text-gray-400">{description}</p>
+          <h3 className="text-sm sm:text-lg font-semibold text-white">{title}</h3>
+          <p className="text-xs sm:text-sm text-gray-400">{description}</p>
         </div>
       </div>
       {children}
