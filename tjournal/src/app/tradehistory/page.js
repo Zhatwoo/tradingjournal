@@ -221,7 +221,8 @@ export default function TradeHistoryPage() {
 
       <Footer 
         sidebarOpen={sidebarOpen} 
-        isMobile={isMobile} 
+        isMobile={isMobile}
+        hasSidebar={true}
       />
 
       <style jsx global>{`

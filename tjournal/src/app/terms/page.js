@@ -5,7 +5,7 @@ export default function TermsPage() {
   return (
     <>
       <TermsOfService />
-      <Footer />
+      <Footer hasSidebar={false} />
     </>
   );
 }
