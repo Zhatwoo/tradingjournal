@@ -5,7 +5,7 @@ export default function PrivacyPage() {
   return (
     <>
       <PrivacyPolicy />
-      <Footer />
+      <Footer hasSidebar={false} />
     </>
   );
 }

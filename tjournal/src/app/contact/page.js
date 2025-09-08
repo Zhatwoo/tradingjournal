@@ -227,7 +227,8 @@ export default function ContactPage() {
 
       <Footer 
         sidebarOpen={sidebarOpen} 
-        isMobile={isMobile} 
+        isMobile={isMobile}
+        hasSidebar={true}
       />
     </div>
   );

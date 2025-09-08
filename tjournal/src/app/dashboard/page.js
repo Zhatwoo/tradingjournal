@@ -782,16 +782,13 @@ export default function Dashboard() {
     
     const today = getDateStringInTimezone(now, userTimezone); // YYYY-MM-DD format in user's preferred timezone
     const yesterday = getDateStringInTimezone(new Date(now.getTime() - 24 * 60 * 60 * 1000), userTimezone);
-    const thisWeek = getDateStringInTimezone(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), userTimezone);
     
     const todayTrades = filteredTrades.filter(trade => getDateStringInTimezone(new Date(trade.date), userTimezone) === today);
     const yesterdayTrades = filteredTrades.filter(trade => getDateStringInTimezone(new Date(trade.date), userTimezone) === yesterday);
-    const thisWeekTrades = filteredTrades.filter(trade => getDateStringInTimezone(new Date(trade.date), userTimezone) >= thisWeek);
     
     return {
       today: todayTrades.length,
-      yesterday: yesterdayTrades.length,
-      thisWeek: thisWeekTrades.length
+      yesterday: yesterdayTrades.length
     };
   }, [filteredTrades]);
 
@@ -803,7 +800,6 @@ export default function Dashboard() {
     { label: "Growth %", value: growthPercentage, color: growthPercentage >= 0 ? "text-green-400" : "text-red-500", suffix: "%" },
     { label: "Total Trades", value: filteredTrades.length, color: "text-white" },
     { label: "Today", value: dateBasedMetrics.today, color: "text-green-400", subtitle: "Trades Today" },
-    { label: "This Week", value: dateBasedMetrics.thisWeek, color: "text-blue-400", subtitle: "Weekly Trades" },
   ], [startingBalance, currentBalance, periodGrowth, growthPercentage, filteredTrades.length, dateBasedMetrics]);
 
 
@@ -1356,7 +1352,8 @@ export default function Dashboard() {
 
       <Footer 
         sidebarOpen={sidebarOpen} 
-        isMobile={isMobile} 
+        isMobile={isMobile}
+        hasSidebar={true}
       />
 
              <style jsx global>{`
