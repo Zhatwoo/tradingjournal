@@ -6,7 +6,7 @@ import { Heart, Github, Twitter, Mail } from "lucide-react";
 export default function Footer({ 
   sidebarOpen = false, 
   isMobile = false,
-  hasSidebar = true 
+  hasSidebar = false 
 }) {
   const currentYear = new Date().getFullYear();
 
