@@ -8,6 +8,7 @@ import {
 } from '../utils/forexCalculations';
 import { useTimezone } from '../contexts/TimezoneContext';
 import { formatDateInTimezone, getTimezoneDisplayName, createDateTimeFromDeviceTime } from '../utils/timezoneUtils';
+import { safeGetFromLocalStorage, safeSetToLocalStorage } from '../utils/safeJsonParse';
 
 export default function AddTradeModal({ showModal, setShowModal, handleSubmit, formData, handleChange, selectedDate, selectedImage, loading = false }) {
   const [imagePreview, setImagePreview] = useState(null);
@@ -68,9 +69,9 @@ export default function AddTradeModal({ showModal, setShowModal, handleSubmit, f
     };
 
     // Save to localStorage for overall performance system
-    const existingMetrics = JSON.parse(localStorage.getItem('tradingMetricsForPerformance') || '[]');
+    const existingMetrics = safeGetFromLocalStorage('tradingMetricsForPerformance', []);
     const updatedMetrics = [...existingMetrics, metricsData];
-    localStorage.setItem('tradingMetricsForPerformance', JSON.stringify(updatedMetrics));
+    safeSetToLocalStorage('tradingMetricsForPerformance', updatedMetrics);
     
     console.log('Metrics automatically saved to overall performance system:', metricsData);
   };
