@@ -18,6 +18,8 @@ import { Line } from "react-chartjs-2";
 import { useTimezone } from '../contexts/TimezoneContext';
 import { getDateStringInTimezone, createDateTimeFromDeviceTime } from '../utils/timezoneUtils';
 import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
+import { safeGetFromLocalStorage, safeSetToLocalStorage } from '../utils/safeJsonParse';
+import ProtectedRoute from '../components/ProtectedRoute';
 
 import {
   Chart as ChartJS,
@@ -188,14 +190,14 @@ export default function Dashboard() {
   useEffect(() => {
     setIsClient(true);
     // Initialize with today's date for better UX
-    const saved = localStorage.getItem('trading-calendar-selected-date');
+    const saved = safeGetFromLocalStorage('trading-calendar-selected-date', null);
     setSelectedDate(saved ? new Date(saved) : new Date());
   }, []);
 
   // Persist selected date to localStorage
   useEffect(() => {
     if (selectedDate && isClient) {
-      localStorage.setItem('trading-calendar-selected-date', selectedDate.toISOString());
+      safeSetToLocalStorage('trading-calendar-selected-date', selectedDate.toISOString());
     }
   }, [selectedDate, isClient]);
 
@@ -808,7 +810,8 @@ export default function Dashboard() {
   // RENDER
   // -----------------------------
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden">
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden">
              {/* Animated background elements */}
        <div className="absolute inset-0 z-0">
          <div className="absolute top-0 left-0 w-48 h-48 sm:w-72 sm:h-72 bg-purple-600 rounded-full mix-blend-soft-light filter blur-3xl opacity-20 animate-blob"></div>
@@ -1423,7 +1426,8 @@ export default function Dashboard() {
         loading={deleteLoading}
         destructive={true}
       />
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }
 

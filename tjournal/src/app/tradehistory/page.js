@@ -8,6 +8,7 @@ import TradeHistory from "../components/TradeHistory";
 import Sidebar from "../components/Sidebar";
 import Footer from "../components/Footer";
 import DeleteConfirmationModal from "../components/DeleteConfirmationModal";
+import ProtectedRoute from '../components/ProtectedRoute';
 import { ArrowLeft } from 'lucide-react';
 
 export default function TradeHistoryPage() {
@@ -170,7 +171,8 @@ export default function TradeHistoryPage() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden">
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden">
       {/* Animated background elements */}
       <div className="absolute inset-0 z-0">
         <div className="absolute top-0 left-0 w-48 h-48 sm:w-72 sm:h-72 bg-purple-600 rounded-full mix-blend-soft-light filter blur-3xl opacity-20 animate-blob"></div>
@@ -255,6 +257,7 @@ export default function TradeHistoryPage() {
         loading={deleteLoading}
         destructive={true}
       />
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }

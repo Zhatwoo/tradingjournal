@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Settings from "../components/Settings";
 import Footer from "../components/Footer";
+import ProtectedRoute from '../components/ProtectedRoute';
 
 export default function SettingsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -23,14 +24,16 @@ export default function SettingsPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
-      <Settings />
-      
-      <Footer 
-        sidebarOpen={sidebarOpen} 
-        isMobile={isMobile}
-        hasSidebar={false}
-      />
-    </div>
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
+        <Settings />
+        
+        <Footer 
+          sidebarOpen={sidebarOpen} 
+          isMobile={isMobile}
+          hasSidebar={false}
+        />
+      </div>
+    </ProtectedRoute>
   );
 }
