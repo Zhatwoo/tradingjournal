@@ -2,6 +2,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "./components/Header";
 import { TimezoneProvider } from "./contexts/TimezoneContext";
+import { AuthProvider } from "./contexts/AuthContext";
+import LocalStorageInitializer from "./components/LocalStorageInitializer";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -24,9 +26,12 @@ export default function RootLayout({ children }) {
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning={true}
       >
-        <TimezoneProvider>
-          {children}
-        </TimezoneProvider>
+        <AuthProvider>
+          <LocalStorageInitializer />
+          <TimezoneProvider>
+            {children}
+          </TimezoneProvider>
+        </AuthProvider>
       </body>
     </html>
   );

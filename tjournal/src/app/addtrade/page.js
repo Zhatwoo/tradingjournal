@@ -8,6 +8,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Sidebar from '../components/Sidebar';
 import AddTradeModal from '../components/AddTrade';
 import Footer from '../components/Footer';
+import ProtectedRoute from '../components/ProtectedRoute';
 import { ArrowLeft } from 'lucide-react';
 import { calculateTradeProfitLoss } from '../utils/forexCalculations';
 import { useTimezone } from '../contexts/TimezoneContext';
@@ -171,7 +172,8 @@ export default function AddTradePage() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden">
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden">
       {/* Animated background elements */}
       <div className="absolute inset-0 z-0">
         <div className="absolute top-0 left-0 w-48 h-48 sm:w-72 sm:h-72 bg-purple-600 rounded-full mix-blend-soft-light filter blur-3xl opacity-20 animate-blob"></div>
@@ -255,6 +257,7 @@ export default function AddTradePage() {
           animation-delay: 4s;
         }
       `}</style>
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }

@@ -7,6 +7,7 @@ import { auth, db } from "../lib/firebase";
 import { collection, query, where, onSnapshot, orderBy, doc, getDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import CoachAi from "./CoachAi";
+import { safeGetFromLocalStorage } from "../utils/safeJsonParse";
 import {
   LineChart,
   Line,
@@ -186,7 +187,7 @@ export default function PerformancePage() {
       }));
       
       // Load metrics data from localStorage and merge with trades
-      const metricsData = JSON.parse(localStorage.getItem('tradingMetricsForPerformance') || '[]');
+      const metricsData = safeGetFromLocalStorage('tradingMetricsForPerformance', []);
       
       // Convert metrics data to trade format and merge
       const metricsAsTrades = metricsData.map(metric => ({
