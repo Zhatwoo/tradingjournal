@@ -4,20 +4,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from '../components/Sidebar';
 import Footer from '../components/Footer';
-import { ArrowLeft, Mail, MessageSquare, Send } from 'lucide-react';
+import { ArrowLeft, Mail } from 'lucide-react';
 
 export default function ContactPage() {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    subject: '',
-    message: ''
-  });
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState({ type: '', text: '' });
 
   // Check screen size
   useState(() => {
@@ -45,33 +37,33 @@ export default function ContactPage() {
     }
   }, []);
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    
-    try {
-      // Simulate form submission
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setMessage({ type: 'success', text: 'Message sent successfully! We\'ll get back to you soon.' });
-      setFormData({ name: '', email: '', subject: '', message: '' });
-    } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to send message. Please try again.' });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
-      <div className="flex min-h-screen">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-slate-800 text-white relative overflow-hidden">
+      {/* Professional geometric background */}
+      <div className="absolute inset-0 opacity-10">
+        {/* Grid pattern */}
+        <div className="absolute inset-0" style={{
+          backgroundImage: `
+            linear-gradient(rgba(59, 130, 246, 0.1) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(59, 130, 246, 0.1) 1px, transparent 1px)
+          `,
+          backgroundSize: '50px 50px'
+        }}></div>
+        
+        {/* Floating geometric shapes */}
+        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-1/3 right-1/4 w-80 h-80 bg-indigo-500/5 rounded-full blur-3xl"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-cyan-500/5 rounded-full blur-3xl"></div>
+        
+        {/* Subtle lines */}
+        <div className="absolute top-0 left-1/4 w-px h-full bg-gradient-to-b from-transparent via-blue-500/10 to-transparent"></div>
+        <div className="absolute top-0 right-1/4 w-px h-full bg-gradient-to-b from-transparent via-indigo-500/10 to-transparent"></div>
+        <div className="absolute top-1/3 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-500/10 to-transparent"></div>
+        <div className="absolute bottom-1/3 left-0 w-full h-px bg-gradient-to-r from-transparent via-indigo-500/10 to-transparent"></div>
+      </div>
+
+      <div className="flex min-h-screen relative z-10">
         {/* Sidebar */}
         <Sidebar
           username="User"
@@ -85,141 +77,107 @@ export default function ContactPage() {
         <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarOpen && !isMobile ? 'lg:ml-64' : 'lg:ml-16'} ml-0 p-4 sm:p-6 lg:p-8`}>
           
           {/* Header */}
-          <div className="mb-6">
+          <div className="mb-8">
             <button
               onClick={() => router.back()}
-              className="p-2 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 transition-colors duration-200 mb-4"
+              className="group p-3 rounded-xl bg-gray-800/50 hover:bg-gray-700/50 transition-all duration-300 mb-6 border border-gray-700/50 hover:border-blue-500/30"
             >
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform duration-300" />
             </button>
             
-            <h1 className="text-3xl font-bold text-white mb-2">Contact Us</h1>
-            <p className="text-gray-400">Get in touch with our team. We'd love to hear from you!</p>
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-full border border-blue-500/20 mb-4">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                <span className="text-sm text-blue-300">Get In Touch</span>
+              </div>
+              
+              <h1 className="text-4xl sm:text-5xl font-bold mb-4">
+                <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-blue-400 bg-clip-text text-transparent bg-300% animate-gradient">
+                  Contact Us
+                </span>
+              </h1>
+              <p className="text-gray-400 text-lg max-w-2xl mx-auto leading-relaxed">
+                Have questions, feedback, or suggestions? We're here to help improve your trading journal experience.
+              </p>
+            </div>
           </div>
 
-          {/* Contact Form */}
-          <div className="max-w-2xl">
-            <div className="bg-gray-800/50 backdrop-blur-lg rounded-xl p-6 border border-gray-700/50">
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-300 mb-2">
-                      Name
-                    </label>
-                    <input
-                      type="text"
-                      id="name"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Your name"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      id="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="your@email.com"
-                    />
+          {/* Contact Information */}
+          <div className="max-w-5xl mx-auto flex-1 flex items-center">
+            <div className="w-full">
+              {/* Main Email Card */}
+              <div className="relative group mb-12">
+                <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 via-purple-500 to-cyan-500 rounded-3xl blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
+                <div className="relative bg-gray-900/80 backdrop-blur-xl rounded-3xl p-12 border border-gray-700/50 text-center hover:bg-gray-900/90 transition-all duration-500">
+                  <div className="mb-8">
+                    <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full mb-6 group-hover:scale-110 transition-transform duration-300">
+                      <Mail className="text-blue-400 group-hover:text-blue-300" size={40} />
+                    </div>
+                    
+                    <h2 className="text-2xl font-bold text-white mb-4">Send us an email</h2>
+                    <div className="inline-flex items-center gap-4 p-6 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl border-2 border-blue-500/30 hover:border-blue-500/50 transition-all duration-300 cursor-pointer group/email">
+                      <div className="text-left">
+                        <div className="text-sm font-medium text-gray-300 mb-1">Email us at:</div>
+                        <div className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent group-hover/email:from-blue-300 group-hover/email:to-purple-300 transition-all duration-300">
+                          Tjournalph@gmail.com
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-
-                <div>
-                  <label htmlFor="subject" className="block text-sm font-medium text-gray-300 mb-2">
-                    Subject
-                  </label>
-                  <input
-                    type="text"
-                    id="subject"
-                    name="subject"
-                    value={formData.subject}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="What's this about?"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="message" className="block text-sm font-medium text-gray-300 mb-2">
-                    Message
-                  </label>
-                  <textarea
-                    id="message"
-                    name="message"
-                    value={formData.message}
-                    onChange={handleChange}
-                    required
-                    rows={6}
-                    className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                    placeholder="Tell us more about your inquiry..."
-                  />
-                </div>
-
-                {message.text && (
-                  <div className={`p-4 rounded-lg ${
-                    message.type === 'success' 
-                      ? 'bg-green-500/20 border border-green-500/30 text-green-400' 
-                      : 'bg-red-500/20 border border-red-500/30 text-red-400'
-                  }`}>
-                    {message.text}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white py-3 px-6 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {loading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-5 w-5" />
-                      Send Message
-                    </>
-                  )}
-                </button>
-              </form>
-            </div>
-
-            {/* Contact Information */}
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-gray-800/50 backdrop-blur-lg rounded-xl p-6 border border-gray-700/50">
-                <div className="flex items-center gap-3 mb-4">
-                  <Mail className="h-6 w-6 text-blue-400" />
-                  <h3 className="text-lg font-semibold text-white">Email Support</h3>
-                </div>
-                <p className="text-gray-400 mb-2">For general inquiries and support:</p>
-                <a href="mailto:support@tjournal.com" className="text-blue-400 hover:text-blue-300 transition-colors">
-                  support@tjournal.com
-                </a>
               </div>
 
-              <div className="bg-gray-800/50 backdrop-blur-lg rounded-xl p-6 border border-gray-700/50">
-                <div className="flex items-center gap-3 mb-4">
-                  <MessageSquare className="h-6 w-6 text-purple-400" />
-                  <h3 className="text-lg font-semibold text-white">Business Inquiries</h3>
+              {/* Features Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+                {/* Feature 1 */}
+                <div className="group relative">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl blur opacity-20 group-hover:opacity-30 transition duration-500"></div>
+                  <div className="relative bg-gray-800/40 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50 hover:border-green-500/30 transition-all duration-300 text-center">
+                    <div className="w-12 h-12 bg-green-500/10 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
+                      <span className="text-2xl">💡</span>
+                    </div>
+                    <h3 className="text-lg font-semibold text-white mb-2">Feature Requests</h3>
+                    <p className="text-gray-400 text-sm">Suggest new features and improvements</p>
+                  </div>
                 </div>
-                <p className="text-gray-400 mb-2">For partnerships and business:</p>
-                <a href="mailto:business@tjournal.com" className="text-purple-400 hover:text-purple-300 transition-colors">
-                  business@tjournal.com
-                </a>
+
+                {/* Feature 2 */}
+                <div className="group relative">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-red-500 to-pink-500 rounded-2xl blur opacity-20 group-hover:opacity-30 transition duration-500"></div>
+                  <div className="relative bg-gray-800/40 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50 hover:border-red-500/30 transition-all duration-300 text-center">
+                    <div className="w-12 h-12 bg-red-500/10 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
+                      <span className="text-2xl">🐛</span>
+                    </div>
+                    <h3 className="text-lg font-semibold text-white mb-2">Bug Reports</h3>
+                    <p className="text-gray-400 text-sm">Report technical issues and bugs</p>
+                  </div>
+                </div>
+
+                {/* Feature 3 */}
+                <div className="group relative">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl blur opacity-20 group-hover:opacity-30 transition duration-500"></div>
+                  <div className="relative bg-gray-800/40 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50 hover:border-blue-500/30 transition-all duration-300 text-center">
+                    <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
+                      <span className="text-2xl">📈</span>
+                    </div>
+                    <h3 className="text-lg font-semibold text-white mb-2">Trading Questions</h3>
+                    <p className="text-gray-400 text-sm">Get help with trading strategies</p>
+                  </div>
+                </div>
+
+                {/* Feature 4 */}
+                <div className="group relative">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl blur opacity-20 group-hover:opacity-30 transition duration-500"></div>
+                  <div className="relative bg-gray-800/40 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50 hover:border-purple-500/30 transition-all duration-300 text-center">
+                    <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
+                      <span className="text-2xl">🤝</span>
+                    </div>
+                    <h3 className="text-lg font-semibold text-white mb-2">Partnerships</h3>
+                    <p className="text-gray-400 text-sm">Business and collaboration opportunities</p>
+                  </div>
+                </div>
               </div>
+
             </div>
           </div>
         </div>
