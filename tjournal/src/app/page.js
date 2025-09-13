@@ -4,6 +4,7 @@ import Link from "next/link";
 import { TrendingUp, BarChart3, Camera, ChevronRight, CheckCircle, ArrowRight } from "lucide-react"; 
 import Header from "./components/Header";
 import CreatorsSection from "./components/CreatorsSection";
+import GetInTouch from "./components/Getintouch";
 import Footer from "./components/Footer";
 
 export default function LandingPage() {
@@ -272,6 +273,9 @@ export default function LandingPage() {
 
       {/* Creators Section */}
       <CreatorsSection />
+
+      {/* Get In Touch Section */}
+      <GetInTouch />
 
       {/* Testimonial/CTA Section */}
       <section className="py-20 px-6 sm:px-10 bg-gradient-to-br from-gray-900 to-gray-950">
