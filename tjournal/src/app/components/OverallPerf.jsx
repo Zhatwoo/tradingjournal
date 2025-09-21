@@ -164,9 +164,16 @@ export default function PerformancePage() {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
       if (currentUser) {
         setUser(currentUser);
+        // Clear any previous user's data
+        setTrades([]);
+        setLoading(true);
         loadUserSettings(currentUser.uid);
         loadTrades(currentUser.uid);
       } else {
+        // Clear all data when user logs out
+        setTrades([]);
+        setUser(null);
+        setUserSettings(null);
         router.push('/auth/login');
       }
     });
@@ -174,6 +181,7 @@ export default function PerformancePage() {
   }, [router]);
 
   const loadTrades = (userId) => {
+    console.log(`Loading trades for user: ${userId}`);
     const q = query(
       collection(db, "trades1"),
       where("userId", "==", userId),
@@ -186,33 +194,37 @@ export default function PerformancePage() {
         ...doc.data()
       }));
       
-      // Load metrics data from localStorage and merge with trades
-      const metricsData = safeGetFromLocalStorage('tradingMetricsForPerformance', []);
+      // Load metrics data from localStorage and merge with trades (user-specific)
+      const metricsData = safeGetFromLocalStorage(`tradingMetricsForPerformance_${userId}`, []);
       
-      // Convert metrics data to trade format and merge
-      const metricsAsTrades = metricsData.map(metric => ({
-        id: `metric_${metric.id}`,
-        userId: userId,
-        symbol: metric.symbol,
-        profit: metric.profit,
-        riskAmount: metric.riskAmount,
-        entry: metric.entry,
-        exit: metric.exit,
-        lotSize: metric.lotSize,
-        notes: metric.notes,
-        tradeDirection: metric.tradeDirection,
-        accountType: metric.accountType,
-        date: new Date(metric.timestamp).toISOString(),
-        deviceTimeTimestamp: metric.deviceTimeTimestamp,
-        userTimezone: metric.userTimezone,
-        isMetricData: true // Flag to identify metrics data
-      }));
+      // Convert metrics data to trade format and merge (with user validation)
+      const metricsAsTrades = metricsData
+        .filter(metric => metric.userId === userId) // Ensure only current user's data
+        .map(metric => ({
+          id: `metric_${metric.id}`,
+          userId: userId,
+          symbol: metric.symbol,
+          profit: metric.profit,
+          riskAmount: metric.riskAmount,
+          entry: metric.entry,
+          exit: metric.exit,
+          lotSize: metric.lotSize,
+          notes: metric.notes,
+          tradeDirection: metric.tradeDirection,
+          accountType: metric.accountType,
+          date: new Date(metric.timestamp).toISOString(),
+          deviceTimeTimestamp: metric.deviceTimeTimestamp,
+          userTimezone: metric.userTimezone,
+          isMetricData: true // Flag to identify metrics data
+        }));
       
-      // Combine trades and metrics data, sort by date
-      const allData = [...tradesData, ...metricsAsTrades].sort((a, b) => 
+      // Combine trades and metrics data, sort by date (with additional user validation)
+      const validatedTradesData = tradesData.filter(trade => trade.userId === userId);
+      const allData = [...validatedTradesData, ...metricsAsTrades].sort((a, b) => 
         new Date(b.date) - new Date(a.date)
       );
       
+      console.log(`User ${userId} loaded ${validatedTradesData.length} Firebase trades and ${metricsAsTrades.length} metrics trades`);
       setTrades(allData);
       setLoading(false);
     }, (error) => {
