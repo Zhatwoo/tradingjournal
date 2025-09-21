@@ -68,7 +68,9 @@ export default function Dashboard() {
   const [imagePreview, setImagePreview] = useState(null);
   const [recentTrades, setRecentTrades] = useState([]);
 
-  const [startingBalance, setStartingBalance] = useState(12000);
+  const [startingBalance, setStartingBalance] = useState(0);
+  const [isSavingBalance, setIsSavingBalance] = useState(false);
+  const [balanceSaveMessage, setBalanceSaveMessage] = useState(null);
   
   // Smart date range defaults - start from beginning of current month, end today
   const getDefaultDateRange = () => {
@@ -192,6 +194,12 @@ export default function Dashboard() {
     // Initialize with today's date for better UX
     const saved = safeGetFromLocalStorage('trading-calendar-selected-date', null);
     setSelectedDate(saved ? new Date(saved) : new Date());
+    
+    // Load starting balance from localStorage immediately for better UX
+    const savedBalance = safeGetFromLocalStorage('starting-balance', null);
+    if (savedBalance) {
+      setStartingBalance(Number(savedBalance));
+    }
   }, []);
 
   // Persist selected date to localStorage
@@ -444,11 +452,14 @@ export default function Dashboard() {
     }
   };
 
-  // Save user settings to Firebase
+  // Save user settings to Firebase and localStorage
   const saveUserSettings = async () => {
     if (!user) return;
     
     try {
+      // Save to localStorage as backup
+      safeSetToLocalStorage('starting-balance', startingBalance.toString());
+      
       const userSettings = {
         startingBalance,
         metricsStartDate,
@@ -458,12 +469,13 @@ export default function Dashboard() {
       };
       
       await setDoc(doc(db, "userSettings", user.uid), userSettings);
+      console.log("User settings saved successfully");
     } catch (error) {
       console.error("Error saving user settings:", error);
     }
   };
 
-  // Load user settings from Firebase with smart defaults
+  // Load user settings from Firebase with localStorage fallback
   const loadUserSettings = async () => {
     if (!user) return;
     
@@ -471,11 +483,17 @@ export default function Dashboard() {
       const userSettingsDoc = await getDoc(doc(db, "userSettings", user.uid));
       if (userSettingsDoc.exists()) {
         const settings = userSettingsDoc.data();
-        setStartingBalance(settings.startingBalance || 12000);
+        setStartingBalance(settings.startingBalance || 0);
         setMetricsStartDate(settings.metricsStartDate || getDefaultDateRange().start);
         setMetricsEndDate(settings.metricsEndDate || getDefaultDateRange().end);
         setSelectedDuration(settings.selectedDuration || '30D');
       } else {
+        // Check localStorage as fallback
+        const localBalance = safeGetFromLocalStorage('starting-balance', null);
+        if (localBalance) {
+          setStartingBalance(Number(localBalance));
+        }
+        
         // No settings exist, use smart defaults
         const smartRange = getSmartDateRange();
         setMetricsStartDate(smartRange.start);
@@ -484,6 +502,13 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error("Error loading user settings:", error);
+      
+      // Fallback to localStorage on Firebase error
+      const localBalance = safeGetFromLocalStorage('starting-balance', null);
+      if (localBalance) {
+        setStartingBalance(Number(localBalance));
+      }
+      
       // Fallback to smart defaults on error
       const smartRange = getSmartDateRange();
       setMetricsStartDate(smartRange.start);
@@ -915,19 +940,50 @@ export default function Dashboard() {
                     <p className="text-gray-500 text-xs mb-2 sm:mb-3 leading-tight">{m.subtitle}</p>
                   )}
                   {m.editable ? (
-                    <input
-                      type="number"
-                      value={startingBalance}
-                      onChange={(e) => {
-                        setStartingBalance(Number(e.target.value));
-                        // Save settings immediately when starting balance changes
-                        if (user) {
-                          setTimeout(() => saveUserSettings(), 500);
-                        }
-                      }}
-                      className="text-base sm:text-lg lg:text-xl font-bold text-white bg-gray-900/70 rounded-lg px-2 sm:px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-600 min-h-[40px]"
-                      onClick={(e) => e.stopPropagation()}
-                    />
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={startingBalance}
+                        onChange={async (e) => {
+                          const newValue = Number(e.target.value);
+                          setStartingBalance(newValue);
+                          setIsSavingBalance(true);
+                          
+                          // Save to localStorage immediately
+                          safeSetToLocalStorage('starting-balance', newValue.toString());
+                          
+                          // Save to Firebase with debounce
+                          if (user) {
+                            setTimeout(async () => {
+                              await saveUserSettings();
+                              setIsSavingBalance(false);
+                              setBalanceSaveMessage({ type: 'success', text: 'Starting balance saved!' });
+                              setTimeout(() => setBalanceSaveMessage(null), 2000);
+                            }, 500);
+                          }
+                        }}
+                        className="text-base sm:text-lg lg:text-xl font-bold text-white bg-gray-900/70 rounded-lg px-2 sm:px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-600 min-h-[40px] pr-8"
+                        onClick={(e) => e.stopPropagation()}
+                        placeholder="Enter starting balance"
+                      />
+                      {isSavingBalance && (
+                        <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                          <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                      )}
+                      <div className="mt-1 text-xs text-gray-500">
+                        {isSavingBalance ? "Saving..." : "Auto-saved"}
+                      </div>
+                      {balanceSaveMessage && (
+                        <div className={`mt-2 text-xs px-2 py-1 rounded ${
+                          balanceSaveMessage.type === 'success' 
+                            ? 'bg-green-500/20 text-green-400' 
+                            : 'bg-red-500/20 text-red-400'
+                        }`}>
+                          {balanceSaveMessage.text}
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <p className={`text-base sm:text-lg lg:text-xl xl:text-2xl font-bold ${m.color} group-hover:scale-105 transition-transform duration-200 leading-tight`}>
                       {m.prefix || ""}{m.value.toLocaleString()}{m.suffix || ""}
@@ -968,9 +1024,9 @@ export default function Dashboard() {
           {/* ========================================
                TRADING ACTIVITY SECTION
           ========================================= */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6 lg:gap-8 mb-4 sm:mb-6 lg:mb-8">
+          <div className="mb-4 sm:mb-6 lg:mb-8">
             
-            {/* Trading Calendar - Optimized with lazy loading and memoized handlers */}
+            {/* Trading Calendar - Full Width - Optimized with lazy loading and memoized handlers */}
             <Suspense fallback={
               <div className="bg-white/5 backdrop-blur-lg p-3 sm:p-4 lg:p-6 rounded-xl sm:rounded-2xl shadow-2xl border border-white/10 animate-pulse">
                 <div className="h-8 bg-white/10 rounded mb-4"></div>
