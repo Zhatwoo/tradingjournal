@@ -1,0 +1,15 @@
+# Exclude heavy files from Cursor indexing
+node_modules/
+.next/
+.git/
+*.log
+package-lock.json
+*.min.js
+*.min.css
+public/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.svg
+*.ico
